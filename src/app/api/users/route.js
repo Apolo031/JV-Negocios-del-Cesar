@@ -21,29 +21,28 @@ export async function GET(request) {
   }
 }
 
-// POST /api/users — crea un usuario nuevo con rol (solo admin)
-// body: { email, password, displayName, role: 'admin' | 'operaciones' }
+// POST /api/users — crea un usuario nuevo con rol, SIN contraseña (solo admin).
+// El usuario recibe un correo para crear su propia contraseña la primera vez.
+// body: { email, displayName, role: 'admin' | 'operaciones' }
 export async function POST(request) {
   try {
     await requireAdmin(request);
     const body = await request.json();
-    const { email, password, displayName, role } = body;
+    const { email, displayName, role } = body;
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Correo y contraseña son obligatorios.' }, { status: 400 });
-    }
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'La contraseña debe tener al menos 8 caracteres.' }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: 'El correo es obligatorio.' }, { status: 400 });
     }
     const finalRole = role === 'admin' ? 'admin' : 'operaciones';
 
-    const userRecord = await adminAuth.createUser({ email, password, displayName: displayName || '' });
+    // Se crea SIN password: el usuario la define él mismo con el enlace que le llega por correo.
+    const userRecord = await adminAuth.createUser({ email, displayName: displayName || '' });
     await adminAuth.setCustomUserClaims(userRecord.uid, { role: finalRole });
     await adminDb.collection('users').doc(userRecord.uid).set({
       email, displayName: displayName || '', role: finalRole, createdAt: Date.now(),
     });
 
-    return NextResponse.json({ uid: userRecord.uid });
+    return NextResponse.json({ uid: userRecord.uid, email });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Error' }, { status: err.status || 500 });
   }
