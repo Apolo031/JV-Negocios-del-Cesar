@@ -1,12 +1,21 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
+
+const MAX_PHOTO_BYTES = 700 * 1024; // ~700KB por foto: Firestore limita cada documento a 1MB total
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 const MEDIOS = ['Facebook', 'Instagram', 'TikTok', 'Google Ads', 'Volantes / impresos', 'Radio', 'Otro'];
 
@@ -42,14 +51,18 @@ export default function PublicidadPage() {
   async function handleAddPub(e) {
     e.preventDefault();
     if (!form.fecha) { alert('Elige la fecha en que se hizo la publicidad.'); return; }
+
+    const tooBig = files.find((f) => f.size > MAX_PHOTO_BYTES);
+    if (tooBig) {
+      alert(`La foto "${tooBig.name}" pesa demasiado (máx. ~700KB por foto mientras no tengamos Firebase Storage activado). Intenta con una imagen más liviana o comprimida.`);
+      return;
+    }
+
     setUploading(true);
     try {
       const photoUrls = [];
       for (const file of files) {
-        const path = `publicidad/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${file.name}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        photoUrls.push(await getDownloadURL(storageRef));
+        photoUrls.push(await readFileAsDataURL(file));
       }
       await addPublicidad({
         branch: form.branch, fecha: form.fecha, medio: form.medio,
@@ -126,7 +139,7 @@ export default function PublicidadPage() {
               <input type="text" placeholder="Ej: promo de julio" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} style={{ width: '100%' }} />
             </div>
             <div style={{ gridColumn: 'span 5' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos (opcional)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos (opcional, máx. ~700KB cada una)</div>
               <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
             </div>
             <button className="btn" type="submit" disabled={uploading}>{uploading ? 'Guardando…' : '+ Agregar'}</button>
