@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +26,7 @@ export default function LoginPage() {
       await login(email, password);
       router.replace('/');
     } catch (err) {
-      setError('Correo o contraseña incorrectos.');
+      setError('Correo o contraseÃ±a incorrectos.');
     } finally {
       setSubmitting(false);
     }
@@ -32,23 +34,34 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
+      <button
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        style={{
+          position: 'fixed', top: 20, right: 20,
+          background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8,
+          width: 34, height: 34, cursor: 'pointer', color: 'var(--text-dim)', fontSize: 16,
+        }}
+      >
+        {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
+      </button>
       <div className="login-card">
         <div className="brand" style={{ marginBottom: 20 }}>
-          <div className="mark">Joyerías del Cesar</div>
+          <div className="mark">JoyerÃ­as del Cesar</div>
           <div className="sub">Panel de control</div>
         </div>
         <form onSubmit={handleSubmit}>
           <label htmlFor="email">Correo</label>
           <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <label htmlFor="password">Contraseña</label>
+          <label htmlFor="password">ContraseÃ±a</label>
           <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <div className="login-error">{error}</div>}
           <button className="btn" type="submit" disabled={submitting} style={{ width: '100%', marginTop: 22 }}>
-            {submitting ? 'Ingresando…' : 'Ingresar'}
+            {submitting ? 'Ingresandoâ€¦' : 'Ingresar'}
           </button>
         </form>
         <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 18, lineHeight: 1.5 }}>
-          Tu cuenta la crea un administrador desde "Usuarios" — no hay registro abierto.
+          Tu cuenta la crea un administrador desde "Usuarios" â€” no hay registro abierto.
         </div>
       </div>
     </div>
