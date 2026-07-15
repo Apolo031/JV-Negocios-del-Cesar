@@ -63,7 +63,7 @@ export default function ComparativoPage() {
               const v25 = totalFor(monthly, b, '2025', metric, cutoff);
               const v26 = totalFor(monthly, b, '2026', metric, cutoff);
               let pill;
-              if (!v25 && v26) pill = <span className="pill pos">Sucursal nueva / arrancando</span>;
+              if (!v25 && v26) pill = <span className="pill pos" title="Sucursal nueva / arrancando">Nueva</span>;
               else if (!v25 && !v26) pill = <span className="pill neu">Sin actividad</span>;
               else { const pct = ((v26 - v25) / Math.abs(v25)) * 100; pill = <span className={`pill ${pct >= 0 ? 'pos' : 'neg'}`}>{fmtPct(pct)}</span>; }
               return (

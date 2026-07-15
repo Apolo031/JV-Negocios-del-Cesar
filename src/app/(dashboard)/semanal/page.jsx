@@ -69,7 +69,7 @@ export default function SemanalPage() {
               const v2 = w1 ? (w1.sucursales?.[k]?.[metric] || 0) : null;
               let pill = <>—</>;
               if (v2 !== null) {
-                if (!v1 && v2) pill = <span className="pill pos">Repuntó desde cero</span>;
+                if (!v1 && v2) pill = <span className="pill pos" title="Repuntó desde cero">Repuntó</span>;
                 else if (!v1 && !v2) pill = <span className="pill neu">Sin actividad</span>;
                 else { const pct = ((v2 - v1) / Math.abs(v1)) * 100; pill = <span className={`pill ${pct >= 0 ? 'pos' : 'neg'}`}>{fmtPct(pct)}</span>; }
               }
