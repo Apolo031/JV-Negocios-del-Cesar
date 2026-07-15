@@ -26,7 +26,7 @@ export default function LoginPage() {
       await login(email, password);
       router.replace('/');
     } catch (err) {
-      setError('Correo o contraseÃ±a incorrectos.');
+      setError('Correo o contraseña incorrectos.');
     } finally {
       setSubmitting(false);
     }
@@ -43,25 +43,25 @@ export default function LoginPage() {
           width: 34, height: 34, cursor: 'pointer', color: 'var(--text-dim)', fontSize: 16,
         }}
       >
-        {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
+        {theme === 'dark' ? '☀️' : '🌙'}
       </button>
       <div className="login-card">
         <div className="brand" style={{ marginBottom: 20 }}>
-          <div className="mark">JoyerÃ­as del Cesar</div>
+          <div className="mark">Joyerías del Cesar</div>
           <div className="sub">Panel de control</div>
         </div>
         <form onSubmit={handleSubmit}>
           <label htmlFor="email">Correo</label>
           <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <label htmlFor="password">ContraseÃ±a</label>
+          <label htmlFor="password">Contraseña</label>
           <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <div className="login-error">{error}</div>}
           <button className="btn" type="submit" disabled={submitting} style={{ width: '100%', marginTop: 22 }}>
-            {submitting ? 'Ingresandoâ€¦' : 'Ingresar'}
+            {submitting ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
         <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 18, lineHeight: 1.5 }}>
-          Tu cuenta la crea un administrador desde "Usuarios" â€” no hay registro abierto.
+          Tu cuenta la crea un administrador desde "Usuarios" — no hay registro abierto.
         </div>
       </div>
     </div>

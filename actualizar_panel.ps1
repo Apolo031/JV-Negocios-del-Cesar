@@ -1,10 +1,12 @@
+﻿$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
 # --- crear carpetas necesarias ---
 New-Item -ItemType Directory -Force -Path "src\app\api\import-excel" | Out-Null
 New-Item -ItemType Directory -Force -Path "src\app\api\analysis" | Out-Null
 New-Item -ItemType Directory -Force -Path "src\app\(dashboard)\analisis" | Out-Null
 
-# --- escribir archivos ---
-[System.IO.File]::WriteAllText("$PWD\package.json", @'
+# --- escribir archivos (UTF-8 sin BOM, para que Next.js y JSON.parse los lean bien) ---
+$content = @'
 {
   "name": "joyerias-panel",
   "version": "1.0.0",
@@ -32,9 +34,10 @@ New-Item -ItemType Directory -Force -Path "src\app\(dashboard)\analisis" | Out-N
     "node": ">=18.18.0"
   }
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\package.json", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\lib\excelParser.js", @'
+$content = @'
 // Extrae los datos mensuales y semanales del archivo Excel de control interno.
 // Reproduce exactamente la misma lógica que usamos para la carga inicial
 // (hojas BARRANQUILLA / CAUCASIA / EURO / HEROICA / SINU con dos bloques de
@@ -154,9 +157,10 @@ export function parseWorkbookBuffer(buffer) {
   const weekly = parseWeekly(workbook);
   return { monthly, weekly };
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\lib\excelParser.js", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\api\import-excel\route.js", @'
+$content = @'
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
@@ -210,9 +214,10 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message || 'Error al importar el archivo' }, { status: err.status || 500 });
   }
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\api\import-excel\route.js", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\api\analysis\route.js", @'
+$content = @'
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/apiAuth';
@@ -324,9 +329,10 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message || 'Error al generar el análisis' }, { status: err.status || 500 });
   }
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\api\analysis\route.js", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\(dashboard)\editar\page.jsx", @'
+$content = @'
 'use client';
 
 import { useState } from 'react';
@@ -491,9 +497,10 @@ export default function EditarPage() {
     </RequireAdmin>
   );
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\(dashboard)\editar\page.jsx", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\(dashboard)\analisis\page.jsx", @'
+$content = @'
 'use client';
 
 import { useState } from 'react';
@@ -582,9 +589,10 @@ export default function AnalisisPage() {
     </div>
   );
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\(dashboard)\analisis\page.jsx", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\components\Sidebar.jsx", @'
+$content = @'
 'use client';
 
 import Link from 'next/link';
@@ -649,9 +657,10 @@ export default function Sidebar() {
     </div>
   );
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\components\Sidebar.jsx", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\globals.css", @'
+$content = @'
 :root{
   --bg:#12151c; --surface:#1a2029; --surface-2:#212838; --border:#2a3242;
   --text:#edeff3; --text-dim:#8d96ac; --text-dimmer:#5e6678;
@@ -814,9 +823,10 @@ td.name{font-family:'Inter',sans-serif; font-weight:500;}
 .login-card label{display:block; font-size:11.5px; color:var(--text-dimmer); margin-bottom:6px; margin-top:16px;}
 .login-card input{width:100%;}
 .login-error{color:var(--red); font-size:12.5px; margin-top:14px;}
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\globals.css", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\contexts\ThemeContext.jsx", @'
+$content = @'
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
@@ -864,9 +874,10 @@ export function useTheme() {
   if (!ctx) throw new Error('useTheme debe usarse dentro de <ThemeProvider>');
   return ctx;
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\contexts\ThemeContext.jsx", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\layout.jsx", @'
+$content = @'
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -894,9 +905,10 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\layout.jsx", $content, $utf8NoBom)
 
-[System.IO.File]::WriteAllText("$PWD\src\app\login\page.jsx", @'
+$content = @'
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -966,6 +978,7 @@ export default function LoginPage() {
     </div>
   );
 }
-'@)
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\login\page.jsx", $content, $utf8NoBom)
 
-Write-Host "Listo: todos los archivos fueron reemplazados." -ForegroundColor Green
+Write-Host "Listo: todos los archivos fueron reemplazados correctamente." -ForegroundColor Green

@@ -3,8 +3,8 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 
 export const metadata = {
-  title: 'JoyerÃ­as del Cesar Â· Panel de control',
-  description: 'Panel de control interno â€” datos financieros, publicidad y pendientes',
+  title: 'Joyerías del Cesar · Panel de control',
+  description: 'Panel de control interno — datos financieros, publicidad y pendientes',
 };
 
 export default function RootLayout({ children }) {

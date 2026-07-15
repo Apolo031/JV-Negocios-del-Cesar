@@ -11,7 +11,7 @@ const ITEMS = [
   { href: '/detalle', label: 'Detalle por sucursal' },
   { href: '/semanal', label: 'Seguimiento semanal' },
   { href: '/publicidad', label: 'Publicidad y pendientes' },
-  { href: '/analisis', label: 'AnÃ¡lisis con IA' },
+  { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },
   { href: '/admin/usuarios', label: 'Usuarios', adminOnly: true },
@@ -26,7 +26,7 @@ export default function Sidebar() {
     <div className="sidebar">
       <div className="brand" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
-          <div className="mark">JoyerÃ­as del Cesar</div>
+          <div className="mark">Joyerías del Cesar</div>
           <div className="sub">Panel de control</div>
         </div>
         <button
@@ -38,7 +38,7 @@ export default function Sidebar() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
           }}
         >
-          {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
+          {theme === 'dark' ? '☀️' : '🌙'}
         </button>
       </div>
 
@@ -53,10 +53,10 @@ export default function Sidebar() {
       })}
 
       <div className="sidebar-foot">
-        <div>SesiÃ³n: <b>{user?.email}</b></div>
+        <div>Sesión: <b>{user?.email}</b></div>
         <div style={{ marginTop: 4 }}>Rol: <b>{role === 'admin' ? 'Administrador' : 'Operaciones (solo lectura)'}</b></div>
         <button className="btn-outline" style={{ marginTop: 10, width: '100%' }} onClick={logout}>
-          Cerrar sesiÃ³n
+          Cerrar sesión
         </button>
       </div>
     </div>

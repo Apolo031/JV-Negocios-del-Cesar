@@ -5,7 +5,7 @@ import { parseWorkbookBuffer, slugifyFecha } from '@/lib/excelParser';
 
 export const runtime = 'nodejs';
 
-// POST /api/import-excel â€” recibe un archivo .xlsx (multipart/form-data, campo "file"),
+// POST /api/import-excel — recibe un archivo .xlsx (multipart/form-data, campo "file"),
 // extrae los datos mensuales y semanales, y los sobreescribe en Firestore. Solo admin.
 export async function POST(request) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request) {
     const formData = await request.formData();
     const file = formData.get('file');
     if (!file) {
-      return NextResponse.json({ error: 'No se recibiÃ³ ningÃºn archivo.' }, { status: 400 });
+      return NextResponse.json({ error: 'No se recibió ningún archivo.' }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -24,7 +24,7 @@ export async function POST(request) {
     const branches = Object.keys(monthly);
     if (branches.length === 0) {
       return NextResponse.json({
-        error: 'No se reconociÃ³ ninguna hoja de sucursal (se esperaba BARRANQUILLA, CAUCASIA, EURO, HEROICA o SINU).',
+        error: 'No se reconoció ninguna hoja de sucursal (se esperaba BARRANQUILLA, CAUCASIA, EURO, HEROICA o SINU).',
       }, { status: 400 });
     }
 

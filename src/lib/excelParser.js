@@ -1,8 +1,8 @@
 // Extrae los datos mensuales y semanales del archivo Excel de control interno.
-// Reproduce exactamente la misma lÃ³gica que usamos para la carga inicial
+// Reproduce exactamente la misma lógica que usamos para la carga inicial
 // (hojas BARRANQUILLA / CAUCASIA / EURO / HEROICA / SINU con dos bloques de
-// filas â€”2025 y 2026â€” y la hoja SEMANALES con reportes de avance).
-// Solo se importa desde cÃ³digo de SERVIDOR (API routes), nunca desde el cliente.
+// filas —2025 y 2026— y la hoja SEMANALES con reportes de avance).
+// Solo se importa desde código de SERVIDOR (API routes), nunca desde el cliente.
 
 import * as XLSX from 'xlsx';
 
@@ -13,17 +13,17 @@ const METRIC_ROWS_2025 = {
 };
 const METRIC_ROWS_2026 = Object.fromEntries(Object.entries(METRIC_ROWS_2025).map(([k, v]) => [k, v + 14]));
 
-// Nombres de hoja normalizados (mayÃºsculas, sin espacios) -> nombre de sucursal.
+// Nombres de hoja normalizados (mayúsculas, sin espacios) -> nombre de sucursal.
 const SHEET_BRANCH_MAP = {
   BARRANQUILLA: 'Barranquilla',
   CAUCASIA: 'Caucasia',
   EURO: 'Euro',
   HEROICA: 'Heroica',
-  SINU: 'SinÃº',
-  SINÃš: 'SinÃº',
+  SINU: 'Sinú',
+  SINÚ: 'Sinú',
 };
 
-/** Accede a una celda como openpyxl: cell(grid, fila, columna) con Ã­ndices 1-based. */
+/** Accede a una celda como openpyxl: cell(grid, fila, columna) con índices 1-based. */
 function cell(grid, r, c) {
   const row = grid[r - 1];
   if (!row) return null;
@@ -31,7 +31,7 @@ function cell(grid, r, c) {
   return v === undefined ? null : v;
 }
 
-/** Limpia valores: corrige errores de digitaciÃ³n tipo "1.999.66" -> 1999.66. */
+/** Limpia valores: corrige errores de digitación tipo "1.999.66" -> 1999.66. */
 function clean(v) {
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'string') {
@@ -71,7 +71,7 @@ export function parseMonthly(workbook) {
   return monthly;
 }
 
-const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, SinÃº: 14 };
+const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, Sinú: 14 };
 const WEEK_METRICS_ORDER = [
   'gramos', 'valor_contratado', 'utilidad', 'prorroga', 'venta_oro', 'valor_venta_oro',
   'venta_plata', 'valor_venta_plata', 'efecty', 'cant_efecty', 'sistecredito', 'cant_sistecredito',
