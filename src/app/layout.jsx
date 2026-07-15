@@ -7,6 +7,12 @@ export const metadata = {
   description: 'Panel de control interno — datos financieros, publicidad y pendientes',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
