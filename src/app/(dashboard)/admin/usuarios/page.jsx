@@ -100,7 +100,7 @@ function UsuariosInner() {
 
       <div className="panel">
         <div className="panel-head"><h3>Nuevo usuario</h3></div>
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, alignItems: 'end' }}>
+        <form onSubmit={handleCreate} className="form-grid cols-5">
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Correo</div>
             <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={{ width: '100%' }} />

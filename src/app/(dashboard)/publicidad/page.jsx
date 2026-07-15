@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -113,7 +113,7 @@ export default function PublicidadPage() {
       {isAdmin && (
         <div className="panel">
           <div className="panel-head"><h3>Nuevo registro de publicidad</h3></div>
-          <form onSubmit={handleAddPub} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, alignItems: 'end' }}>
+          <form onSubmit={handleAddPub} className="form-grid">
             <div>
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Sucursal</div>
               <select value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} style={{ width: '100%' }}>
@@ -134,11 +134,11 @@ export default function PublicidadPage() {
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Costo</div>
               <input type="number" step="any" placeholder="0" value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })} style={{ width: '100%' }} />
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+            <div className="fg-span2">
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Descripción</div>
               <input type="text" placeholder="Ej: promo de julio" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} style={{ width: '100%' }} />
             </div>
-            <div style={{ gridColumn: 'span 5' }}>
+            <div className="fg-span5">
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos (opcional, máx. ~700KB cada una)</div>
               <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
             </div>

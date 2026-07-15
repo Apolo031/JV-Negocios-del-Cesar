@@ -42,7 +42,7 @@ export default function DetallePage() {
           <h1>Detalle por sucursal</h1>
           <p>Composición mensual completa de una joyería</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <select value={branch} onChange={(e) => setBranch(e.target.value)}>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select>
           <select value={year} onChange={(e) => setYear(e.target.value)}><option value="2026">2026</option><option value="2025">2025</option></select>
         </div>
