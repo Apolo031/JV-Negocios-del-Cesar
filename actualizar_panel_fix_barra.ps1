@@ -1,3 +1,6 @@
+﻿$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+$content = @'
 :root{
   --bg:#12151c; --surface:#1a2029; --surface-2:#212838; --border:#2a3242;
   --text:#edeff3; --text-dim:#8d96ac; --text-dimmer:#5e6678;
@@ -227,3 +230,7 @@ td.name{font-family:'Inter',sans-serif; font-weight:500;}
 .login-card label{display:block; font-size:11.5px; color:var(--text-dimmer); margin-bottom:6px; margin-top:16px;}
 .login-card input{width:100%;}
 .login-error{color:var(--red); font-size:12.5px; margin-top:14px;}
+'@
+[System.IO.File]::WriteAllText("$PWD\src\app\globals.css", $content, $utf8NoBom)
+
+Write-Host "Listo: barra movil corregida." -ForegroundColor Green
