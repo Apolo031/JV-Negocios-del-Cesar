@@ -1,0 +1,152 @@
+[
+  {
+    "fecha": "SABADO 07 JUlIO",
+    "sucursales": {
+      "Barranquillera": {
+        "gramos": 243.09,
+        "valor_contratado": 71385000,
+        "utilidad": 3075750,
+        "prorroga": 583500,
+        "venta_oro": 7.02,
+        "valor_venta_oro": 3935070,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 9,
+        "cant_efecty": 0,
+        "sistecredito": 1,
+        "cant_sistecredito": 1090321
+      },
+      "Caucasia": {
+        "gramos": 151.35,
+        "valor_contratado": 43275000,
+        "utilidad": 1330250,
+        "prorroga": 626500,
+        "venta_oro": 11.9,
+        "valor_venta_oro": 6711160,
+        "venta_plata": 0,
+        "valor_venta_plata": 130880,
+        "efecty": 27,
+        "cant_efecty": 0,
+        "sistecredito": 4,
+        "cant_sistecredito": 0
+      },
+      "Euro": {
+        "gramos": 69.3,
+        "valor_contratado": 17045000,
+        "utilidad": 2256500,
+        "prorroga": 2338100,
+        "venta_oro": 8.67,
+        "valor_venta_oro": 468363,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 90,
+        "cant_efecty": 14931371,
+        "sistecredito": 2.04,
+        "cant_sistecredito": 1122000
+      },
+      "Heroica": {
+        "gramos": 69.1,
+        "valor_contratado": 20450000,
+        "utilidad": 303625,
+        "prorroga": 0,
+        "venta_oro": 4.3,
+        "valor_venta_oro": 2432475,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 10,
+        "cant_efecty": 2108189,
+        "sistecredito": 1,
+        "cant_sistecredito": 264000
+      },
+      "Sinú": {
+        "gramos": 156.6,
+        "valor_contratado": 35245000,
+        "utilidad": 8364375,
+        "prorroga": 958500,
+        "venta_oro": 5.98,
+        "valor_venta_oro": 3506625,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 9,
+        "cant_efecty": 1746082,
+        "sistecredito": 0,
+        "cant_sistecredito": 0
+      }
+    }
+  },
+  {
+    "fecha": "SABADO 11 JUlIO",
+    "sucursales": {
+      "Barranquillera": {
+        "gramos": 346.38,
+        "valor_contratado": 100185000,
+        "utilidad": 3686000,
+        "prorroga": 718500,
+        "venta_oro": 15.71,
+        "valor_venta_oro": 8745195,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 15,
+        "cant_efecty": 0,
+        "sistecredito": 1,
+        "cant_sistecredito": 1090321
+      },
+      "Caucasia": {
+        "gramos": 213.39,
+        "valor_contratado": 57410000,
+        "utilidad": 2142500,
+        "prorroga": 772500,
+        "venta_oro": 18.89,
+        "valor_venta_oro": 10736575,
+        "venta_plata": 0,
+        "valor_venta_plata": 309380,
+        "efecty": 34,
+        "cant_efecty": 0,
+        "sistecredito": 5,
+        "cant_sistecredito": 0
+      },
+      "Euro": {
+        "gramos": 136.9,
+        "valor_contratado": 32245000,
+        "utilidad": 3242100,
+        "prorroga": 3607000,
+        "venta_oro": 17.02,
+        "valor_venta_oro": 9420887,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 150,
+        "cant_efecty": 28078983,
+        "sistecredito": 2.04,
+        "cant_sistecredito": 1122000
+      },
+      "Heroica": {
+        "gramos": 108.4,
+        "valor_contratado": 31330000,
+        "utilidad": 361875,
+        "prorroga": 42000,
+        "venta_oro": 12.68,
+        "valor_venta_oro": 7179455,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 14,
+        "cant_efecty": 2268600,
+        "sistecredito": 4,
+        "cant_sistecredito": 2268600
+      },
+      "Sinú": {
+        "gramos": 295.48,
+        "valor_contratado": 71025000,
+        "utilidad": 13391500,
+        "prorroga": 2284500,
+        "venta_oro": 10.09,
+        "valor_venta_oro": 5889825,
+        "venta_plata": 0,
+        "valor_venta_plata": 0,
+        "efecty": 15,
+        "cant_efecty": 2779427,
+        "sistecredito": 0,
+        "cant_sistecredito": 0
+      }
+    }
+  }
+]

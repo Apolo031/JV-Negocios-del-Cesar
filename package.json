@@ -1,0 +1,26 @@
+﻿{
+  "name": "joyerias-panel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "node scripts/seedData.js"
+  },
+  "dependencies": {
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "firebase": "10.12.4",
+    "firebase-admin": "12.3.0",
+    "chart.js": "4.4.4"
+  },
+  "devDependencies": {
+    "dotenv": "16.4.5"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}

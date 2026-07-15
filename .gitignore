@@ -1,0 +1,21 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# env files - NUNCA subir credenciales a GitHub
+.env
+.env.local
+.env*.local
+serviceAccountKey.json
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel

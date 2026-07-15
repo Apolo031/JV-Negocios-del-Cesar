@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// ============================================================
+// REGLAS DE FIRESTORE — Joyerías del Cesar
+//
+// Modelo de permisos:
+//   - admin:       puede leer y escribir todo (incluida la gestión de usuarios).
+//   - operaciones: puede leer todo, pero NO puede escribir/editar/borrar nada.
+//
+// El rol vive en un "custom claim" del token de Firebase Auth (request.auth.token.role),
+// NO en un campo editable por el propio usuario en Firestore. Los custom claims solo
+// se asignan desde el servidor (Firebase Admin SDK, ver src/app/api/users), así que un
+// usuario no puede promoverse a sí mismo a admin manipulando datos desde el cliente.
+// ============================================================
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function isAdmin() {
+  return isSignedIn() && request.auth.token.role == 'admin';
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Perfil espejo del usuario (nombre, email, rol de solo-lectura para la UI).
+    // El campo "role" aquí es solo informativo para mostrar en pantalla; la
+    // autorización real siempre depende del custom claim, no de este documento.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Datos financieros mensuales por sucursal (lo que antes venía del Excel).
+    match /monthly/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Reportes de avance semanal.
+    match /weekly/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Registros de publicidad (incluye rutas a fotos en Storage).
+    match /publicidad/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Pendientes / tareas.
+    match /pendientes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Por defecto: todo lo demás queda cerrado. Cualquier colección nueva que
+    // agregues debe declararse explícitamente arriba con sus propias reglas.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

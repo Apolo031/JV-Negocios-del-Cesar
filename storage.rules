@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// ============================================================
+// REGLAS DE STORAGE — fotos de publicidad
+// Mismo modelo que Firestore: cualquier usuario autenticado puede ver las
+// fotos; solo un admin puede subir o borrar.
+// ============================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /publicidad/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.token.role == 'admin'
+                   && request.resource.size < 8 * 1024 * 1024   // máx. 8 MB por foto
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
