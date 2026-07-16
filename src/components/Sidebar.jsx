@@ -15,6 +15,7 @@ const ITEMS = [
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },
   { href: '/admin/usuarios', label: 'Usuarios', adminOnly: true },
+  { href: '/cuenta', label: 'Mi cuenta' },
 ];
 
 export default function Sidebar({ open, onNavigate, onClose }) {

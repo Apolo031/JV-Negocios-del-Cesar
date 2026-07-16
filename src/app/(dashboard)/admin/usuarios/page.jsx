@@ -1,10 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import RequireAdmin from '@/components/RequireAdmin';
 import { useAuth } from '@/contexts/AuthContext';
-import { auth } from '@/lib/firebaseClient';
+
+export default function UsuariosPage() {
+  return (
+    <RequireAdmin>
+      <UsuariosInner />
+    </RequireAdmin>
+  );
+}
 
 function UsuariosInner() {
   const { getIdToken, user } = useAuth();
@@ -14,7 +20,11 @@ function UsuariosInner() {
   const [notice, setNotice] = useState('');
   const [form, setForm] = useState({ email: '', displayName: '', role: 'operaciones' });
   const [creating, setCreating] = useState(false);
-  const [resendingUid, setResendingUid] = useState('');
+
+  // fila donde se está escribiendo una contraseña nueva (solo una a la vez)
+  const [passwordUid, setPasswordUid] = useState('');
+  const [passwordValue, setPasswordValue] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const authedFetch = useCallback(async (url, options = {}) => {
     const token = await getIdToken();
@@ -52,30 +62,13 @@ function UsuariosInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      // Firebase manda automáticamente un correo con un enlace para que el
-      // usuario cree su propia contraseña (no necesitamos servidor de correo propio).
-      await sendPasswordResetEmail(auth, data.email);
-      setNotice(`Usuario creado. Le llegó un correo a ${data.email} para que cree su contraseña.`);
+      setNotice(`Usuario creado: ${data.email}. Contraseña inicial: "${data.defaultPassword}" — compártesela para que entre y la cambie en "Mi cuenta".`);
       setForm({ email: '', displayName: '', role: form.role });
       await loadUsers();
     } catch (err) {
       setError(err.message);
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function handleResendInvite(email, uid) {
-    setError('');
-    setNotice('');
-    setResendingUid(uid);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setNotice(`Se reenvió el correo de invitación a ${email}.`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setResendingUid('');
     }
   }
 
@@ -115,17 +108,47 @@ function UsuariosInner() {
     }
   }
 
+  function startPasswordChange(uid) {
+    setPasswordUid(uid);
+    setPasswordValue('');
+    setError('');
+    setNotice('');
+  }
+
+  async function handleSavePassword(email) {
+    if (passwordValue.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await authedFetch(`/api/users/${passwordUid}/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordValue }),
+      });
+      setNotice(`Contraseña actualizada para ${email}. Comunícasela para que entre.`);
+      setPasswordUid('');
+      setPasswordValue('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
   return (
     <div>
       <div className="topbar">
-        <div><h1>Usuarios</h1><p>Crea cuentas y asigna el rol de administrador u operaciones</p></div>
+        <div><h1>Usuarios</h1><p>Crea cuentas, asigna roles, y restablece contraseñas si alguien la pierde</p></div>
       </div>
 
       <div className="panel">
         <div className="panel-head"><h3>Nuevo usuario</h3></div>
         <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-          No defines la contraseña tú — en cuanto crees la cuenta, le va a llegar un correo a esa
-          dirección para que la persona cree su propia contraseña.
+          Se crea con una contraseña inicial fija (<code>Bienvenido123</code>). Compártesela a la
+          persona por el medio que prefieras — al entrar puede cambiarla ella misma desde
+          "Mi cuenta".
         </div>
         <form onSubmit={handleCreate} className="form-grid cols-5">
           <div>
@@ -143,7 +166,7 @@ function UsuariosInner() {
               <option value="admin">Administrador</option>
             </select>
           </div>
-          <button className="btn" type="submit" disabled={creating}>{creating ? 'Creando…' : '+ Crear usuario e invitar'}</button>
+          <button className="btn" type="submit" disabled={creating}>{creating ? 'Creando…' : '+ Crear usuario'}</button>
         </form>
         {error && <div className="login-error">{error}</div>}
         {notice && <div style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 10 }}>{notice}</div>}
@@ -159,30 +182,52 @@ function UsuariosInner() {
               <thead><tr><th style={{ textAlign: 'left' }}>Correo</th><th style={{ textAlign: 'left' }}>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.uid}>
-                    <td className="name">{u.email}</td>
-                    <td className="name">{u.displayName || '—'}</td>
-                    <td>
-                      <select value={u.role} onChange={(e) => handleRoleChange(u.uid, e.target.value)} disabled={u.uid === user.uid}>
-                        <option value="operaciones">Operaciones</option>
-                        <option value="admin">Administrador</option>
-                      </select>
-                    </td>
-                    <td>
-                      <span className={`pill ${u.disabled ? 'neg' : 'pos'}`}>{u.disabled ? 'Deshabilitado' : 'Activo'}</span>
-                    </td>
-                    <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      <button className="btn-outline" onClick={() => handleResendInvite(u.email, u.uid)} disabled={resendingUid === u.uid}>
-                        {resendingUid === u.uid ? 'Enviando…' : 'Reenviar invitación'}
-                      </button>
-                      <button className="btn-outline" onClick={() => handleToggleDisabled(u.uid, !u.disabled)}>
-                        {u.disabled ? 'Habilitar' : 'Deshabilitar'}
-                      </button>
-                      {u.uid !== user.uid && (
-                        <button className="btn-outline" onClick={() => handleDelete(u.uid)}>Eliminar</button>
-                      )}
-                    </td>
-                  </tr>
+                  <Fragment key={u.uid}>
+                    <tr>
+                      <td className="name">{u.email}</td>
+                      <td className="name">{u.displayName || '—'}</td>
+                      <td>
+                        <select value={u.role} onChange={(e) => handleRoleChange(u.uid, e.target.value)} disabled={u.uid === user.uid}>
+                          <option value="operaciones">Operaciones</option>
+                          <option value="admin">Administrador</option>
+                        </select>
+                      </td>
+                      <td>
+                        <span className={`pill ${u.disabled ? 'neg' : 'pos'}`}>{u.disabled ? 'Deshabilitado' : 'Activo'}</span>
+                      </td>
+                      <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <button className="btn-outline" onClick={() => startPasswordChange(u.uid)}>
+                          Cambiar contraseña
+                        </button>
+                        <button className="btn-outline" onClick={() => handleToggleDisabled(u.uid, !u.disabled)}>
+                          {u.disabled ? 'Habilitar' : 'Deshabilitar'}
+                        </button>
+                        {u.uid !== user.uid && (
+                          <button className="btn-outline" onClick={() => handleDelete(u.uid)}>Eliminar</button>
+                        )}
+                      </td>
+                    </tr>
+                    {passwordUid === u.uid && (
+                      <tr>
+                        <td colSpan={5} style={{ background: 'var(--surface-2)' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0' }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Nueva contraseña para {u.email}:</span>
+                            <input
+                              type="text"
+                              value={passwordValue}
+                              onChange={(e) => setPasswordValue(e.target.value)}
+                              placeholder="mín. 8 caracteres"
+                              style={{ width: 200 }}
+                            />
+                            <button className="btn" onClick={() => handleSavePassword(u.email)} disabled={savingPassword}>
+                              {savingPassword ? 'Guardando…' : 'Guardar'}
+                            </button>
+                            <button className="btn-outline" onClick={() => setPasswordUid('')}>Cancelar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -190,13 +235,5 @@ function UsuariosInner() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function UsuariosPage() {
-  return (
-    <RequireAdmin>
-      <UsuariosInner />
-    </RequireAdmin>
   );
 }

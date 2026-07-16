@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 
+export const DEFAULT_PASSWORD = 'Bienvenido123';
+
 // GET /api/users — lista todos los usuarios (solo admin)
 export async function GET(request) {
   try {
@@ -21,8 +23,9 @@ export async function GET(request) {
   }
 }
 
-// POST /api/users — crea un usuario nuevo con rol, SIN contraseña (solo admin).
-// El usuario recibe un correo para crear su propia contraseña la primera vez.
+// POST /api/users — crea un usuario nuevo con rol y una contraseña inicial
+// fija (solo admin). El admin le comparte esa contraseña a la persona por
+// fuera (WhatsApp, en persona, etc.) y ella la cambia luego en "Mi cuenta".
 // body: { email, displayName, role: 'admin' | 'operaciones' }
 export async function POST(request) {
   try {
@@ -35,14 +38,13 @@ export async function POST(request) {
     }
     const finalRole = role === 'admin' ? 'admin' : 'operaciones';
 
-    // Se crea SIN password: el usuario la define él mismo con el enlace que le llega por correo.
-    const userRecord = await adminAuth.createUser({ email, displayName: displayName || '' });
+    const userRecord = await adminAuth.createUser({ email, password: DEFAULT_PASSWORD, displayName: displayName || '' });
     await adminAuth.setCustomUserClaims(userRecord.uid, { role: finalRole });
     await adminDb.collection('users').doc(userRecord.uid).set({
       email, displayName: displayName || '', role: finalRole, createdAt: Date.now(),
     });
 
-    return NextResponse.json({ uid: userRecord.uid, email });
+    return NextResponse.json({ uid: userRecord.uid, email, defaultPassword: DEFAULT_PASSWORD });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Error' }, { status: err.status || 500 });
   }
