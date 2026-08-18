@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
@@ -91,6 +92,31 @@ export default function PublicidadPage() {
 
   const pendList = pendientes.slice().sort((a, b) => (a.done - b.done) || (a.fecha || '9999').localeCompare(b.fecha || '9999'));
 
+  function handleExportExcel() {
+    const historial = list.map((p) => ({
+      Fecha: p.fecha || '', Sucursal: p.branch || '', Medio: p.medio || '',
+      Costo: p.costo || 0, Descripción: p.desc || '', Fotos: p.photos?.length || 0,
+    }));
+    const resumenMensual = keys.map((k) => {
+      const row = { Mes: monthKeyLabel(k) };
+      let total = 0;
+      for (const b of BRANCHES) {
+        const v = publicidad.filter((p) => p.branch === b && monthKey(p.fecha) === k).reduce((s, p) => s + (p.costo || 0), 0);
+        row[b] = v;
+        total += v;
+      }
+      row.Total = total;
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historial), 'Historial');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenMensual), 'Resumen mensual');
+
+    const sucursalTag = filterBranch === '__ALL__' ? 'todas-sucursales' : filterBranch.toLowerCase();
+    XLSX.writeFile(wb, `publicidad_${sucursalTag}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   return (
     <div>
       <div className="topbar">
@@ -164,11 +190,21 @@ export default function PublicidadPage() {
 
       <div className="panel">
         <div className="panel-head">
-          <h3>Registros</h3>
-          <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
-            <option value="__ALL__">Todas las sucursales</option>
-            {BRANCHES.map((b) => <option key={b}>{b}</option>)}
-          </select>
+          <div>
+            <h3>Historial de gastos</h3>
+            <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'var(--text-dimmer)' }}>
+              {list.length} {list.length === 1 ? 'registro' : 'registros'} · {fmtMoney(list.reduce((s, p) => s + (p.costo || 0), 0))}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
+              <option value="__ALL__">Todas las sucursales</option>
+              {BRANCHES.map((b) => <option key={b}>{b}</option>)}
+            </select>
+            <button className="btn-outline" type="button" onClick={handleExportExcel} disabled={list.length === 0}>
+              ⭳ Descargar Excel
+            </button>
+          </div>
         </div>
         {list.length === 0 ? (
           <div className="empty-note">Aún no hay registros de publicidad{isAdmin ? '. Agrega el primero arriba.' : '.'}</div>
