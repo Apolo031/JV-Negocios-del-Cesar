@@ -91,14 +91,20 @@ export function parseWeekly(workbook) {
     if (marker && String(marker).toUpperCase().includes('REPORTES')) {
       const fecha = cell(grid, row, 14) || `semana-fila-${row}`;
       const week = { fecha: String(fecha), sucursales: {} };
+      let hasAnyRawValue = false;
       for (const [branch, col] of Object.entries(WEEK_BRANCH_COLS)) {
         const vals = {};
         for (let i = 0; i < WEEK_METRICS_ORDER.length; i++) {
-          vals[WEEK_METRICS_ORDER[i]] = clean(cell(grid, row + 2 + i, col + 1));
+          const raw = cell(grid, row + 2 + i, col + 1);
+          if (raw !== null && raw !== undefined && raw !== '') hasAnyRawValue = true;
+          vals[WEEK_METRICS_ORDER[i]] = clean(raw);
         }
         week.sucursales[branch] = vals;
       }
-      weeks.push(week);
+      // Bloques sin ninguna celda diligenciada son plantillas para la próxima
+      // semana, no un reporte real — se ignoran para no sobrescribir con
+      // ceros un reporte que ya existía en Firestore para esa misma fecha.
+      if (hasAnyRawValue) weeks.push(week);
       row += 18;
     } else {
       row += 1;

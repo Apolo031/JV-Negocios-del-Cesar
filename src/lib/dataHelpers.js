@@ -14,6 +14,49 @@ export const METRIC_LABEL = {
   operacion_efecty: 'Recaudo Efecty', cantidad_efecty: 'Operaciones Efecty',
   operacion_sistecredito: 'Recaudo Sistecrédito', cantidad_sistecredito: 'Operaciones Sistecrédito',
 };
+function stripAccents(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+/**
+ * Convierte un texto tipo "SABADO 15 AGOSTO" en una fecha real, para poder
+ * ordenar los reportes semanales cronológicamente. Antes se guardaban
+ * (y ordenaban) como texto plano, así que "SABADO 8 AGOSTO" quedaba después
+ * de "SABADO 15 AGOSTO" en orden alfabético — el 8 nunca era "el más
+ * reciente" aunque cronológicamente sí lo fuera respecto a otras fechas.
+ * Como el texto no trae año, se elige entre el año actual y el anterior el
+ * que dé una fecha más cercana a "hoy" (sin pasarse más de ~45 días al
+ * futuro), para no romperse en el cruce de diciembre a enero.
+ */
+export function parseFechaSemanal(fecha, referenceDate = new Date()) {
+  if (!fecha) return null;
+  const norm = stripAccents(String(fecha).toUpperCase());
+  const match = norm.match(/(\d{1,2})\s+([A-Z]+)/);
+  if (!match) return null;
+  const day = parseInt(match[1], 10);
+  const monthNames = MONTH_NAMES_FULL.map((m) => stripAccents(m.toUpperCase()));
+  const month = monthNames.indexOf(match[2]);
+  if (month === -1) return null;
+
+  const refYear = referenceDate.getFullYear();
+  let candidate = new Date(refYear, month, day);
+  const FORTY_FIVE_DAYS = 45 * 24 * 60 * 60 * 1000;
+  if (candidate.getTime() - referenceDate.getTime() > FORTY_FIVE_DAYS) {
+    candidate = new Date(refYear - 1, month, day);
+  }
+  return candidate;
+}
+
+/** Ordena reportes semanales ({fecha, ...}) de más antiguo a más reciente. */
+export function sortWeekly(weekly) {
+  return [...weekly].sort((a, b) => {
+    const da = parseFechaSemanal(a.fecha);
+    const db = parseFechaSemanal(b.fecha);
+    if (da && db) return da - db;
+    if (da) return -1;
+    if (db) return 1;
+    return (a.fecha || '').localeCompare(b.fecha || '');
+  });
+}
+
 export const EMPTY_MONTH_ARRAY = () => new Array(12).fill(0);
 export const EDIT_METRICS = ['gr_contrato','valor_contratado','utilidad','prorroga','venta_oro','valor_venta_oro','venta_plata','valor_venta_plata','operacion_efecty','operacion_sistecredito'];
 

@@ -2,11 +2,11 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, query, orderBy,
+  collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from './AuthContext';
-import { BRANCHES, EDIT_METRICS, emptyMonthlyData } from '@/lib/dataHelpers';
+import { BRANCHES, EDIT_METRICS, emptyMonthlyData, sortWeekly } from '@/lib/dataHelpers';
 
 const DataContext = createContext(null);
 
@@ -33,8 +33,10 @@ export function DataProvider({ children }) {
       });
     });
 
-    const unsubWeekly = onSnapshot(query(collection(db, 'weekly'), orderBy('fecha')), (snap) => {
-      setWeekly(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    // Ordenar por fecha real (no alfabéticamente: "SABADO 8 AGOSTO" quedaría
+    // después de "SABADO 15 AGOSTO" como texto, aunque sea anterior).
+    const unsubWeekly = onSnapshot(collection(db, 'weekly'), (snap) => {
+      setWeekly(sortWeekly(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
     });
 
     const unsubPub = onSnapshot(collection(db, 'publicidad'), (snap) => {
