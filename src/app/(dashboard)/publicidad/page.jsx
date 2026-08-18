@@ -7,7 +7,7 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
 
-const MAX_PHOTO_BYTES = 700 * 1024; // ~700KB por foto: Firestore limita cada documento a 1MB total
+const MAX_PHOTO_BYTES = 700 * 1024; // ~700KB por archivo: Firestore limita cada documento a 1MB total
 
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -16,6 +16,10 @@ function readFileAsDataURL(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function isPdf(dataUrl) {
+  return typeof dataUrl === 'string' && dataUrl.startsWith('data:application/pdf');
 }
 
 const MEDIOS = ['Facebook', 'Instagram', 'TikTok', 'Google Ads', 'Volantes / impresos', 'Radio', 'Otro'];
@@ -55,7 +59,7 @@ export default function PublicidadPage() {
 
     const tooBig = files.find((f) => f.size > MAX_PHOTO_BYTES);
     if (tooBig) {
-      alert(`La foto "${tooBig.name}" pesa demasiado (máx. ~700KB por foto mientras no tengamos Firebase Storage activado). Intenta con una imagen más liviana o comprimida.`);
+      alert(`El archivo "${tooBig.name}" pesa demasiado (máx. ~700KB por archivo mientras no tengamos Firebase Storage activado). Intenta con un archivo más liviano o comprimido.`);
       return;
     }
 
@@ -165,8 +169,8 @@ export default function PublicidadPage() {
               <input type="text" placeholder="Ej: promo de julio" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} style={{ width: '100%' }} />
             </div>
             <div className="fg-span5">
-              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos (opcional, máx. ~700KB cada una)</div>
-              <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
+              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos o PDF (opcional, máx. ~700KB cada uno)</div>
+              <input type="file" accept="image/*,application/pdf" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
             </div>
             <button className="btn" type="submit" disabled={uploading}>{uploading ? 'Guardando…' : '+ Agregar'}</button>
           </form>
@@ -222,9 +226,20 @@ export default function PublicidadPage() {
                 {p.photos?.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                     {p.photos.map((src, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={src} alt="" onClick={() => window.open(src, '_blank')}
-                        style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
+                      isPdf(src) ? (
+                        <div key={i} onClick={() => window.open(src, '_blank')} title="Abrir PDF"
+                          style={{
+                            width: 56, height: 56, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            gap: 2, background: 'var(--surface-2)', color: 'var(--red)', fontSize: 9, fontWeight: 700,
+                          }}>
+                          <span style={{ fontSize: 18 }}>📄</span>PDF
+                        </div>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={i} src={src} alt="" onClick={() => window.open(src, '_blank')}
+                          style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
+                      )
                     ))}
                   </div>
                 )}
