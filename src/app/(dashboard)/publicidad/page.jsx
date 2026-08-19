@@ -18,8 +18,29 @@ function readFileAsDataURL(file) {
   });
 }
 
-function isPdf(dataUrl) {
-  return typeof dataUrl === 'string' && dataUrl.startsWith('data:application/pdf');
+// Los adjuntos viejos son solo el data URL (string); los nuevos son
+// {src, name} para poder mostrar de qué factura/archivo se trata.
+function photoSrc(p) { return typeof p === 'string' ? p : p?.src; }
+function photoName(p) { return typeof p === 'string' ? '' : (p?.name || ''); }
+function isPdf(p) { return (photoSrc(p) || '').startsWith('data:application/pdf'); }
+
+// Chrome (y otros) bloquean o dejan en blanco la navegación directa de una
+// pestaña nueva a una URL "data:" grande. Convertirla a un blob: sí se abre bien.
+function openAttachment(p) {
+  const dataUrl = photoSrc(p);
+  if (!dataUrl) return;
+  try {
+    const [meta, base64] = dataUrl.split(',');
+    const mime = meta.match(/data:(.*);base64/)?.[1] || 'application/octet-stream';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch (err) {
+    window.open(dataUrl, '_blank');
+  }
 }
 
 const MEDIOS = ['Facebook', 'Instagram', 'TikTok', 'Google Ads', 'Volantes / impresos', 'Radio', 'Otro'];
@@ -67,7 +88,7 @@ export default function PublicidadPage() {
     try {
       const photoUrls = [];
       for (const file of files) {
-        photoUrls.push(await readFileAsDataURL(file));
+        photoUrls.push({ src: await readFileAsDataURL(file), name: file.name });
       }
       await addPublicidad({
         branch: form.branch, fecha: form.fecha, medio: form.medio,
@@ -224,23 +245,31 @@ export default function PublicidadPage() {
                   {isAdmin && <button className="btn-outline" onClick={() => deletePublicidad(p.id)}>Eliminar</button>}
                 </div>
                 {p.photos?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                    {p.photos.map((src, i) => (
-                      isPdf(src) ? (
-                        <div key={i} onClick={() => window.open(src, '_blank')} title="Abrir PDF"
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    {p.photos.map((item, i) => {
+                      const name = photoName(item);
+                      const title = name || (isPdf(item) ? 'PDF sin nombre (adjunto antes de esta actualización)' : 'Ver foto');
+                      return isPdf(item) ? (
+                        <div key={i} onClick={() => openAttachment(item)} title={title}
                           style={{
-                            width: 56, height: 56, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer',
+                            width: 68, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                            gap: 2, background: 'var(--surface-2)', color: 'var(--red)', fontSize: 9, fontWeight: 700,
+                            gap: 2, background: 'var(--surface-2)', padding: '8px 4px',
                           }}>
-                          <span style={{ fontSize: 18 }}>📄</span>PDF
+                          <span style={{ fontSize: 18, color: 'var(--red)' }}>📄</span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 600, color: 'var(--text-dim)', width: '100%',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center',
+                          }}>
+                            {name || 'PDF'}
+                          </span>
                         </div>
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={src} alt="" onClick={() => window.open(src, '_blank')}
+                        <img key={i} src={photoSrc(item)} alt={name} title={title} onClick={() => openAttachment(item)}
                           style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
