@@ -21,6 +21,8 @@ const SHEET_BRANCH_MAP = {
   HEROICA: 'Heroica',
   SINU: 'Sinú',
   SINÚ: 'Sinú',
+  'LA 5': 'La 5',
+  LA5: 'La 5',
 };
 
 /** Accede a una celda como openpyxl: cell(grid, fila, columna) con índices 1-based. */
@@ -71,7 +73,13 @@ export function parseMonthly(workbook) {
   return monthly;
 }
 
-const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, Sinú: 14 };
+const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, Sinú: 14, 'La 5': 17 };
+// La fecha del reporte se escribe en la hoja siempre en la columna de la
+// última sucursal (justo encima de su nombre) — así que al agregar una
+// sucursal nueva, la fecha se corre con ella en vez de quedar en una
+// posición fija. Ver commit que agregó "La 5": la fecha pasó de la
+// columna 14 (Sinú) a la 17 (La 5) cuando se sumó esa columna.
+const FECHA_COL = Math.max(...Object.values(WEEK_BRANCH_COLS));
 const WEEK_METRICS_ORDER = [
   'gramos', 'valor_contratado', 'utilidad', 'prorroga', 'venta_oro', 'valor_venta_oro',
   'venta_plata', 'valor_venta_plata', 'efecty', 'cant_efecty', 'sistecredito', 'cant_sistecredito',
@@ -89,7 +97,7 @@ export function parseWeekly(workbook) {
   while (row <= maxRow) {
     const marker = cell(grid, row, 2);
     if (marker && String(marker).toUpperCase().includes('REPORTES')) {
-      const fecha = cell(grid, row, 14) || `semana-fila-${row}`;
+      const fecha = cell(grid, row, FECHA_COL) || `semana-fila-${row}`;
       const week = { fecha: String(fecha), sucursales: {} };
       let hasAnyRawValue = false;
       for (const [branch, col] of Object.entries(WEEK_BRANCH_COLS)) {

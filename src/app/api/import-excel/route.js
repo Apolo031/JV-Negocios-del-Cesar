@@ -24,7 +24,7 @@ export async function POST(request) {
     const branches = Object.keys(monthly);
     if (branches.length === 0) {
       return NextResponse.json({
-        error: 'No se reconoció ninguna hoja de sucursal (se esperaba BARRANQUILLA, CAUCASIA, EURO, HEROICA o SINU).',
+        error: 'No se reconoció ninguna hoja de sucursal (se esperaba BARRANQUILLA, CAUCASIA, EURO, HEROICA, SINU o LA 5).',
       }, { status: 400 });
     }
 

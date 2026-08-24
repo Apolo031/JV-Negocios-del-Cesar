@@ -28,7 +28,7 @@ async function loadWeekly() {
 function buildSummary(monthly, weekly) {
   const lastM = lastActiveMonth2026(monthly);
   const lines = [];
-  lines.push(`Datos de Joyerías del Cesar (5 sucursales), año en curso 2026 hasta ${MONTH_NAMES_FULL[lastM]}, comparado con 2025.`);
+  lines.push(`Datos de Joyerías del Cesar (${BRANCHES.length} sucursales), año en curso 2026 hasta ${MONTH_NAMES_FULL[lastM]}, comparado con 2025.`);
   lines.push('');
   lines.push('=== Consolidado 2026 (Ene-' + MONTH_NAMES_FULL[lastM] + ') ===');
   lines.push(`Valor contratado total: ${fmtMoney(totalAll(monthly, '2026', 'valor_contratado', lastM + 1))}`);

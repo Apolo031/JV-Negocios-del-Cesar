@@ -55,7 +55,7 @@ export default function ResumenPage() {
       <div className="topbar">
         <div>
           <h1>Resumen general</h1>
-          <p>Consolidado de las 5 joyerías</p>
+          <p>Consolidado de las joyerías</p>
         </div>
         <div className="btn-group">
           <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>

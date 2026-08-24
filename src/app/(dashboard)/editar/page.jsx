@@ -43,7 +43,7 @@ function ImportarExcel() {
       <div className="panel-head"><h3>Importar desde Excel</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
         Sube el archivo de control interno (mismo formato de siempre: hojas BARRANQUILLA, CAUCASIA,
-        EURO, HEROICA, SINU y SEMANALES). Los datos que traiga <b>reemplazan</b> lo que ya está
+        EURO, HEROICA, SINU, LA 5 (si ya existe) y SEMANALES). Los datos que traiga <b>reemplazan</b> lo que ya está
         guardado para esos meses y sucursales — así que si solo quieres corregir un par de valores,
         es más rápido hacerlo en la tabla de abajo.
       </div>

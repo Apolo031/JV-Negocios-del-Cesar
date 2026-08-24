@@ -6,7 +6,7 @@ import {
   series, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
-const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú' };
+const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
 
 function buildAlerts(monthly, weekly) {
   const alerts = [];
@@ -70,7 +70,7 @@ function buildAlerts(monthly, weekly) {
   const rank = BRANCHES.map((b) => ({ b, v: totalFor(monthly, b, '2026', 'utilidad', lastM + 1) })).sort((a, b) => b.v - a.v);
   if (rank[0] && rank[0].v > 0) {
     alerts.push({ sev: 'low', icon: '★', title: `${rank[0].b} lidera en utilidad`,
-      desc: `Acumula ${fmtMoney(rank[0].v)} en lo corrido de 2026, la cifra más alta entre las 5 joyerías.` });
+      desc: `Acumula ${fmtMoney(rank[0].v)} en lo corrido de 2026, la cifra más alta entre las joyerías.` });
   }
 
   const order = { high: 0, med: 1, low: 2 };

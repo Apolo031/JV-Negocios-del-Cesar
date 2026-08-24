@@ -5,7 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, fmtNum, fmtPct } from '@/lib/dataHelpers';
 
-const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú' };
+const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
 const WEEK_METRIC_LABEL = { gramos: 'Gramos en contrato', valor_contratado: 'Valor contratado', utilidad: 'Utilidad', venta_oro: 'Venta de oro (g)', prorroga: 'Prórrogas' };
 const WEEK_METRIC_IS_MONEY = { gramos: false, valor_contratado: true, utilidad: true, venta_oro: false, prorroga: true };
 

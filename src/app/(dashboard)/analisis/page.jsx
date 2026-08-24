@@ -61,14 +61,14 @@ export default function AnalisisPage() {
         <div className="panel">
           <div className="empty-note">
             Todavía no has generado un análisis. Dale clic a "Generar análisis" — la IA va a revisar
-            los datos actuales de las 5 sucursales y darte un resumen con recomendaciones.
+            los datos actuales de las sucursales y darte un resumen con recomendaciones.
           </div>
         </div>
       )}
 
       {loading && (
         <div className="panel">
-          <div className="empty-note">Revisando los números de las 5 sucursales…</div>
+          <div className="empty-note">Revisando los números de las sucursales…</div>
         </div>
       )}
 

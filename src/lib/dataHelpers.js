@@ -3,9 +3,9 @@
 
 export const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 export const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-export const BRANCHES = ['Barranquilla','Caucasia','Euro','Heroica','Sinú'];
+export const BRANCHES = ['Barranquilla','Caucasia','Euro','Heroica','Sinú','La 5'];
 export const BRANCH_COLOR = {
-  Barranquilla: '#e8cd7a', Caucasia: '#5b8dbe', Euro: '#7fa37a', Heroica: '#c1443a', Sinú: '#9b7ebd',
+  Barranquilla: '#e8cd7a', Caucasia: '#5b8dbe', Euro: '#7fa37a', Heroica: '#c1443a', Sinú: '#9b7ebd', 'La 5': '#4fb3a9',
 };
 export const METRIC_LABEL = {
   gr_contrato: 'Gramos en contrato', valor_contratado: 'Valor contratado', utilidad: 'Utilidad',
