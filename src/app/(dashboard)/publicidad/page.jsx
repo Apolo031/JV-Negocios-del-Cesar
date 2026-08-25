@@ -7,7 +7,10 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
 
-const MAX_PHOTO_BYTES = 700 * 1024; // ~700KB por archivo: Firestore limita cada documento a 1MB total
+// Firestore limita cada documento a 1MB total, y el base64 le suma ~33% al
+// peso original de cada archivo — así que el límite real es sobre la SUMA de
+// todos los adjuntos de un mismo registro, no sobre cada archivo por separado.
+const MAX_TOTAL_PHOTO_BYTES = 700 * 1024;
 
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -78,9 +81,9 @@ export default function PublicidadPage() {
     e.preventDefault();
     if (!form.fecha) { alert('Elige la fecha en que se hizo la publicidad.'); return; }
 
-    const tooBig = files.find((f) => f.size > MAX_PHOTO_BYTES);
-    if (tooBig) {
-      alert(`El archivo "${tooBig.name}" pesa demasiado (máx. ~700KB por archivo mientras no tengamos Firebase Storage activado). Intenta con un archivo más liviano o comprimido.`);
+    const totalBytes = files.reduce((s, f) => s + f.size, 0);
+    if (totalBytes > MAX_TOTAL_PHOTO_BYTES) {
+      alert(`Los archivos adjuntos pesan demasiado entre todos (${(totalBytes / 1024).toFixed(0)}KB, máx. ~700KB en total mientras no tengamos Firebase Storage activado). Adjunta menos archivos o comprímelos.`);
       return;
     }
 
@@ -190,7 +193,7 @@ export default function PublicidadPage() {
               <input type="text" placeholder="Ej: promo de julio" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} style={{ width: '100%' }} />
             </div>
             <div className="fg-span5">
-              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos o PDF (opcional, máx. ~700KB cada uno)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos o PDF (opcional, máx. ~700KB entre todos los archivos)</div>
               <input type="file" accept="image/*,application/pdf" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
             </div>
             <button className="btn" type="submit" disabled={uploading}>{uploading ? 'Guardando…' : '+ Agregar'}</button>
