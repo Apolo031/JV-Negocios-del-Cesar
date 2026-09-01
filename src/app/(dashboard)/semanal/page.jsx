@@ -3,11 +3,24 @@
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
-import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, fmtNum, fmtPct } from '@/lib/dataHelpers';
+import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, fmtGr, fmtNum, fmtPct } from '@/lib/dataHelpers';
 
 const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
-const WEEK_METRIC_LABEL = { gramos: 'Gramos en contrato', valor_contratado: 'Valor contratado', utilidad: 'Utilidad', venta_oro: 'Venta de oro (g)', prorroga: 'Prórrogas' };
-const WEEK_METRIC_IS_MONEY = { gramos: false, valor_contratado: true, utilidad: true, venta_oro: false, prorroga: true };
+const WEEK_METRIC_LABEL = {
+  gramos: 'Gramos en contrato', valor_contratado: 'Valor contratado', utilidad: 'Utilidad', prorroga: 'Prórrogas',
+  venta_oro: 'Venta de oro (g)', valor_venta_oro: 'Venta de oro ($)',
+  venta_plata: 'Venta de plata (g)', valor_venta_plata: 'Venta de plata ($)',
+  efecty: 'Operaciones Efecty', cant_efecty: 'Recaudo Efecty',
+  sistecredito: 'Operaciones Sistecrédito', cant_sistecredito: 'Recaudo Sistecrédito',
+};
+const WEEK_METRIC_IS_MONEY = {
+  gramos: false, valor_contratado: true, utilidad: true, prorroga: true,
+  venta_oro: false, valor_venta_oro: true,
+  venta_plata: false, valor_venta_plata: true,
+  efecty: false, cant_efecty: true,
+  sistecredito: false, cant_sistecredito: true,
+};
+const WEEK_METRIC_IS_GRAMS = { gramos: true, venta_oro: true, venta_plata: true };
 
 export default function SemanalPage() {
   const { weekly, loading } = useData();
@@ -23,7 +36,7 @@ export default function SemanalPage() {
     );
   }
 
-  const fmtWeek = (v) => (WEEK_METRIC_IS_MONEY[metric] ? fmtMoney(v) : fmtNum(v));
+  const fmtWeek = (v) => (WEEK_METRIC_IS_GRAMS[metric] ? fmtGr(v) : (WEEK_METRIC_IS_MONEY[metric] ? fmtMoney(v) : fmtNum(v)));
   const w0 = weekly[weekly.length - 2] || weekly[0];
   const w1 = weekly[weekly.length - 1];
 

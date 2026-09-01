@@ -213,10 +213,7 @@ export default function ResumenPage() {
         <div className="panel-head">
           <h3>Tendencia mensual · 2025 vs 2026</h3>
           <select value={trendMetric} onChange={(e) => setTrendMetric(e.target.value)}>
-            <option value="utilidad">Utilidad</option>
-            <option value="valor_contratado">Valor contratado</option>
-            <option value="gr_contrato">Gramos en contrato</option>
-            <option value="prorroga">Prórrogas</option>
+            {ALL_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
           </select>
         </div>
         <ChartCanvas

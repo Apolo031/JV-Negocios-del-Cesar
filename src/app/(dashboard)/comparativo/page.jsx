@@ -4,11 +4,9 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
-  BRANCHES, BRANCH_COLOR, METRIC_LABEL,
+  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL,
   fmtByMetric, fmtMoneyShort, fmtPct, isMoney, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
-
-const METRIC_OPTIONS = ['utilidad', 'valor_contratado', 'gr_contrato', 'valor_venta_oro', 'valor_venta_plata', 'prorroga', 'operacion_efecty', 'operacion_sistecredito'];
 
 export default function ComparativoPage() {
   const { monthly, loading } = useData();
@@ -29,7 +27,7 @@ export default function ComparativoPage() {
           <p>Enero–junio 2025 vs. enero–junio 2026, para comparar periodos equivalentes</p>
         </div>
         <select value={metric} onChange={(e) => setMetric(e.target.value)}>
-          {METRIC_OPTIONS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
+          {ALL_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
         </select>
       </div>
 

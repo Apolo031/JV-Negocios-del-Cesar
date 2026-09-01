@@ -9,8 +9,6 @@ import {
   series, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
-const CHART_METRICS = ['utilidad', 'valor_contratado', 'gr_contrato', 'prorroga', 'valor_venta_oro', 'valor_venta_plata'];
-
 export default function DetallePage() {
   const { monthly, loading } = useData();
   const [branch, setBranch] = useState(BRANCHES[0]);
@@ -121,7 +119,7 @@ export default function DetallePage() {
           <div className="panel-head">
             <h3>Evolución mensual</h3>
             <select value={metric} onChange={(e) => setMetric(e.target.value)}>
-              {CHART_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
+              {ALL_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
             </select>
           </div>
           <ChartCanvas
