@@ -9,7 +9,7 @@ import Chart from 'chart.js/auto';
 import {
   BRANCHES, BRANCH_COLOR, ALL_METRICS, MONTH_NAMES_FULL, METRIC_LABEL,
   fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtConcepto,
-  totalFor, totalAll, lastActiveMonth2026, parseFechaSemanal,
+  totalFor, totalAll, lastActiveMonth2026, parseFechaSemanal, series,
 } from './dataHelpers';
 
 const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
@@ -247,4 +247,76 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
 
   const fecha = new Date().toISOString().slice(0, 10);
   doc.save(`resumen-general-joyerias-${monthLabel.toLowerCase()}-${fecha}.pdf`);
+}
+
+/**
+ * PDF de una sola sucursal comparando dos periodos puntuales (mes+año cada
+ * uno) — el mismo comparativo del panel "Comparar dos periodos" en Detalle.
+ * @param {object} params
+ * @param {string} params.branch
+ * @param {object} params.monthly
+ * @param {{year:string,month:number}} params.periodA
+ * @param {{year:string,month:number}} params.periodB
+ */
+export async function generateBranchComparisonPdf({ branch, monthly, periodA, periodB }) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const labelA = `${MONTH_NAMES_FULL[periodA.month]} ${periodA.year}`;
+  const labelB = `${MONTH_NAMES_FULL[periodB.month]} ${periodB.year}`;
+  const valA = (metric) => series(monthly, branch, periodA.year, metric)[periodA.month] || 0;
+  const valB = (metric) => series(monthly, branch, periodB.year, metric)[periodB.month] || 0;
+
+  // --- Encabezado ---
+  doc.setFontSize(18);
+  doc.setTextColor(...DARK);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Joyerías del Cesar — ${branch}`, 14, 16);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Comparación de periodos: ${labelA} vs. ${labelB}`, 14, 23);
+  doc.setFontSize(9.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Generado el ${new Date().toLocaleString('es-CO')}`, 14, 28.5);
+
+  // --- Gráficos: valor contratado y utilidad, periodo A vs B ---
+  const branchColor = BRANCH_COLOR[branch] || GOLD;
+  const [chartVC, chartUT] = await Promise.all([
+    barChartImage({ labels: [labelA, labelB], data: [valA('valor_contratado'), valB('valor_contratado')], colors: [branchColor, '#3a4152'], title: 'Valor contratado' }),
+    barChartImage({ labels: [labelA, labelB], data: [valA('utilidad'), valB('utilidad')], colors: [branchColor, '#3a4152'], title: 'Utilidad' }),
+  ]);
+  const chartW = 86, chartH = (chartW * 420) / 900;
+  let y = 34;
+  doc.addImage(chartVC, 'PNG', 14, y, chartW, chartH);
+  doc.addImage(chartUT, 'PNG', 14 + chartW + 8, y, chartW, chartH);
+  y += chartH + 8;
+
+  // --- Tabla comparativa: los 12 conceptos ---
+  y = sectionHeader(doc, 'Comparación por concepto', y);
+  const body = ALL_METRICS.map((metric) => {
+    const a = valA(metric), b = valB(metric);
+    let varTxt;
+    if (!a && b) varTxt = 'Repuntó';
+    else if (!a && !b) varTxt = 'Sin actividad';
+    else varTxt = fmtPct(((b - a) / Math.abs(a)) * 100);
+    return [METRIC_LABEL[metric], fmtConcepto(metric, a), fmtConcepto(metric, b), varTxt];
+  });
+  autoTable(doc, {
+    startY: y,
+    head: [['Concepto', labelA, labelB, 'Variación']],
+    body,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 2.5 },
+    headStyles: { fillColor: GOLD, textColor: 30, fontStyle: 'bold' },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 } },
+  });
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() - 30, doc.internal.pageSize.getHeight() - 6);
+  }
+
+  const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  doc.save(`comparacion-${slug(branch)}-${slug(labelA)}-vs-${slug(labelB)}.pdf`);
 }

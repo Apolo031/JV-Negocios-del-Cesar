@@ -17,6 +17,17 @@ export default function DetallePage() {
   const lastM0 = lastActiveMonth2026(monthly);
   const [cmpA, setCmpA] = useState({ year: '2026', month: lastM0 });
   const [cmpB, setCmpB] = useState({ year: '2025', month: lastM0 });
+  const [generatingCmpPdf, setGeneratingCmpPdf] = useState(false);
+
+  async function handleDownloadComparisonPdf() {
+    setGeneratingCmpPdf(true);
+    try {
+      const { generateBranchComparisonPdf } = await import('@/lib/pdfReport');
+      await generateBranchComparisonPdf({ branch, monthly, periodA: cmpA, periodB: cmpB });
+    } finally {
+      setGeneratingCmpPdf(false);
+    }
+  }
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
@@ -57,7 +68,12 @@ export default function DetallePage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>Comparar dos periodos — {branch}</h3></div>
+        <div className="panel-head">
+          <h3>Comparar dos periodos — {branch}</h3>
+          <button className="btn-outline" type="button" onClick={handleDownloadComparisonPdf} disabled={generatingCmpPdf}>
+            {generatingCmpPdf ? 'Generando…' : '⭳ Descargar PDF'}
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Periodo A</div>
