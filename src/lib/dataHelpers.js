@@ -14,6 +14,9 @@ export const METRIC_LABEL = {
   operacion_efecty: 'Recaudo Efecty', cantidad_efecty: 'Operaciones Efecty',
   operacion_sistecredito: 'Recaudo Sistecrédito', cantidad_sistecredito: 'Operaciones Sistecrédito',
 };
+// Los 12 conceptos tal como están en la hoja de Excel de cada sucursal, en el
+// mismo orden — para tablas que deben mostrar "todos los items" sin elegir.
+export const ALL_METRICS = Object.keys(METRIC_LABEL);
 function stripAccents(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
 /**

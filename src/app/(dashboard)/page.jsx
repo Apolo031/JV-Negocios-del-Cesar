@@ -4,30 +4,36 @@ import { useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
-  BRANCHES, BRANCH_COLOR, MONTH_NAMES, MONTH_NAMES_FULL,
-  fmtMoney, fmtMoneyShort, fmtGr, fmtPct,
+  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
+  fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtByMetric,
   sumSeries, totalFor, totalAll, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
+
+function fmtItem(metric, v) {
+  return metric === 'gr_contrato' || metric === 'venta_oro' || metric === 'venta_plata' ? fmtGr(v) : fmtByMetric(metric, v);
+}
 
 export default function ResumenPage() {
   const { monthly, weekly, loading } = useData();
   const [period, setPeriod] = useState('ytd');
   const [trendMetric, setTrendMetric] = useState('utilidad');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfMonth, setPdfMonth] = useState(null); // null = usa el último mes con datos
+
+  const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
+  const pdfMonthValue = pdfMonth === null ? lastM : pdfMonth;
+  const year = period === 'ytd' ? '2026' : '2025';
+  const upto = period === 'ytd' ? lastM + 1 : 12;
 
   async function handleDownloadPdf() {
     setGeneratingPdf(true);
     try {
       const { generateGeneralReportPdf } = await import('@/lib/pdfReport');
-      generateGeneralReportPdf({ monthly, weekly });
+      await generateGeneralReportPdf({ monthly, weekly, cutoffMonth: pdfMonthValue });
     } finally {
       setGeneratingPdf(false);
     }
   }
-
-  const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
-  const year = period === 'ytd' ? '2026' : '2025';
-  const upto = period === 'ytd' ? lastM + 1 : 12;
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
@@ -77,6 +83,11 @@ export default function ResumenPage() {
               Todo 2025
             </button>
           </div>
+          <select value={pdfMonthValue} onChange={(e) => setPdfMonth(parseInt(e.target.value, 10))} title="Mes de corte del PDF">
+            {MONTH_NAMES_FULL.slice(0, lastM + 1).map((m, i) => (
+              <option key={m} value={i}>Hasta {m}</option>
+            ))}
+          </select>
           <button className="btn-outline" type="button" onClick={handleDownloadPdf} disabled={generatingPdf || loading}>
             {generatingPdf ? 'Generando…' : '⭳ Descargar PDF'}
           </button>
@@ -109,6 +120,42 @@ export default function ResumenPage() {
         <div className="kpi">
           <div className="label">Gramos en contrato (oro)</div>
           <div className="value">{fmtGr(totalGramos)}</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3>Resultados por sucursal — todos los conceptos</h3>
+          <span className="hint">{period === 'ytd' ? `2026, Ene–${MONTH_NAMES[lastM]}` : '2025, año completo'}</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Concepto</th>
+                {BRANCHES.map((b) => <th key={b}>{b}</th>)}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_METRICS.map((metric) => (
+                <tr key={metric}>
+                  <td className="name">{METRIC_LABEL[metric]}</td>
+                  {BRANCHES.map((b) => <td key={b}>{fmtItem(metric, totalFor(monthly, b, year, metric, upto))}</td>)}
+                  <td style={{ fontWeight: 700 }}>{fmtItem(metric, totalAll(monthly, year, metric, upto))}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 700 }}>
+                <td className="name">Margen (%)</td>
+                {BRANCHES.map((b) => {
+                  const vc = totalFor(monthly, b, year, 'valor_contratado', upto);
+                  const ut = totalFor(monthly, b, year, 'utilidad', upto);
+                  return <td key={b}>{vc ? (ut / vc * 100).toFixed(1) + '%' : '—'}</td>;
+                })}
+                <td>{margen.toFixed(1)}%</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
