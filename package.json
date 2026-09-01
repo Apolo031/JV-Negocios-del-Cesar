@@ -10,12 +10,14 @@
     "seed": "node scripts/seedData.js"
   },
   "dependencies": {
+    "chart.js": "4.4.4",
+    "firebase": "10.12.4",
+    "firebase-admin": "12.3.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "firebase": "10.12.4",
-    "firebase-admin": "12.3.0",
-    "chart.js": "4.4.4",
     "xlsx": "0.18.5"
   },
   "devDependencies": {

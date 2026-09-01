@@ -10,9 +10,20 @@ import {
 } from '@/lib/dataHelpers';
 
 export default function ResumenPage() {
-  const { monthly, loading } = useData();
+  const { monthly, weekly, loading } = useData();
   const [period, setPeriod] = useState('ytd');
   const [trendMetric, setTrendMetric] = useState('utilidad');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  async function handleDownloadPdf() {
+    setGeneratingPdf(true);
+    try {
+      const { generateGeneralReportPdf } = await import('@/lib/pdfReport');
+      generateGeneralReportPdf({ monthly, weekly });
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
 
   const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
   const year = period === 'ytd' ? '2026' : '2025';
@@ -57,12 +68,17 @@ export default function ResumenPage() {
           <h1>Resumen general</h1>
           <p>Consolidado de las joyerías</p>
         </div>
-        <div className="btn-group">
-          <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>
-            Año en curso (Ene–{MONTH_NAMES[lastM]})
-          </button>
-          <button className={`btn-toggle${period === '2025' ? ' active' : ''}`} onClick={() => setPeriod('2025')}>
-            Todo 2025
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="btn-group">
+            <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>
+              Año en curso (Ene–{MONTH_NAMES[lastM]})
+            </button>
+            <button className={`btn-toggle${period === '2025' ? ' active' : ''}`} onClick={() => setPeriod('2025')}>
+              Todo 2025
+            </button>
+          </div>
+          <button className="btn-outline" type="button" onClick={handleDownloadPdf} disabled={generatingPdf || loading}>
+            {generatingPdf ? 'Generando…' : '⭳ Descargar PDF'}
           </button>
         </div>
       </div>
