@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
-  BRANCHES, BRANCH_COLOR, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
-  fmtByMetric, fmtMoney, fmtMoneyShort, fmtGr, isMoney,
+  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
+  fmtByMetric, fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtConcepto, isMoney,
   series, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
@@ -16,10 +16,13 @@ export default function DetallePage() {
   const [branch, setBranch] = useState(BRANCHES[0]);
   const [year, setYear] = useState('2026');
   const [metric, setMetric] = useState('utilidad');
+  const lastM0 = lastActiveMonth2026(monthly);
+  const [cmpA, setCmpA] = useState({ year: '2026', month: lastM0 });
+  const [cmpB, setCmpB] = useState({ year: '2025', month: lastM0 });
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
-  const lastM = lastActiveMonth2026(monthly);
+  const lastM = lastM0;
   const cutoff = year === '2026' ? lastM + 1 : 12;
 
   const totUt = totalFor(monthly, branch, year, 'utilidad', cutoff);
@@ -53,6 +56,64 @@ export default function DetallePage() {
         <div className="kpi"><div className="label">Utilidad</div><div className="value">{fmtMoney(totUt)}</div></div>
         <div className="kpi"><div className="label">Margen</div><div className="value">{margen.toFixed(1)}%</div></div>
         <div className="kpi"><div className="label">Gramos en contrato</div><div className="value">{fmtGr(totGr)}</div></div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head"><h3>Comparar dos periodos — {branch}</h3></div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Periodo A</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={cmpA.month} onChange={(e) => setCmpA({ ...cmpA, month: parseInt(e.target.value, 10) })}>
+                {MONTH_NAMES_FULL.map((m, i) => <option key={m} value={i}>{m}</option>)}
+              </select>
+              <select value={cmpA.year} onChange={(e) => setCmpA({ ...cmpA, year: e.target.value })}>
+                <option value="2026">2026</option><option value="2025">2025</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Periodo B</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={cmpB.month} onChange={(e) => setCmpB({ ...cmpB, month: parseInt(e.target.value, 10) })}>
+                {MONTH_NAMES_FULL.map((m, i) => <option key={m} value={i}>{m}</option>)}
+              </select>
+              <select value={cmpB.year} onChange={(e) => setCmpB({ ...cmpB, year: e.target.value })}>
+                <option value="2026">2026</option><option value="2025">2025</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Concepto</th>
+                <th>{MONTH_NAMES_FULL[cmpA.month]} {cmpA.year}</th>
+                <th>{MONTH_NAMES_FULL[cmpB.month]} {cmpB.year}</th>
+                <th>Variación</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_METRICS.map((m) => {
+                const vA = series(monthly, branch, cmpA.year, m)[cmpA.month] || 0;
+                const vB = series(monthly, branch, cmpB.year, m)[cmpB.month] || 0;
+                let pill;
+                if (!vA && vB) pill = <span className="pill pos" title="Repuntó desde cero">Repuntó</span>;
+                else if (!vA && !vB) pill = <span className="pill neu">Sin actividad</span>;
+                else { const pct = ((vB - vA) / Math.abs(vA)) * 100; pill = <span className={`pill ${pct >= 0 ? 'pos' : 'neg'}`}>{fmtPct(pct)}</span>; }
+                return (
+                  <tr key={m}>
+                    <td className="name">{METRIC_LABEL[m]}</td>
+                    <td>{fmtConcepto(m, vA)}</td>
+                    <td>{fmtConcepto(m, vB)}</td>
+                    <td>{pill}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="grid-2">

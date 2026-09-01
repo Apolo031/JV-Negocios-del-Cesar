@@ -5,13 +5,9 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
   BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
-  fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtByMetric,
+  fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtConcepto,
   sumSeries, totalFor, totalAll, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
-
-function fmtItem(metric, v) {
-  return metric === 'gr_contrato' || metric === 'venta_oro' || metric === 'venta_plata' ? fmtGr(v) : fmtByMetric(metric, v);
-}
 
 export default function ResumenPage() {
   const { monthly, weekly, loading } = useData();
@@ -141,8 +137,8 @@ export default function ResumenPage() {
               {ALL_METRICS.map((metric) => (
                 <tr key={metric}>
                   <td className="name">{METRIC_LABEL[metric]}</td>
-                  {BRANCHES.map((b) => <td key={b}>{fmtItem(metric, totalFor(monthly, b, year, metric, upto))}</td>)}
-                  <td style={{ fontWeight: 700 }}>{fmtItem(metric, totalAll(monthly, year, metric, upto))}</td>
+                  {BRANCHES.map((b) => <td key={b}>{fmtConcepto(metric, totalFor(monthly, b, year, metric, upto))}</td>)}
+                  <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, totalAll(monthly, year, metric, upto))}</td>
                 </tr>
               ))}
               <tr style={{ fontWeight: 700 }}>

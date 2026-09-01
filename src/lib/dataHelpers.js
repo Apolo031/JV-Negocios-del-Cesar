@@ -94,6 +94,10 @@ export function isMoney(metric) {
 export function fmtByMetric(metric, v) {
   return isMoney(metric) ? fmtMoney(v) : fmtNum(v);
 }
+/** Igual que fmtByMetric, pero gr_contrato/venta_oro/venta_plata se muestran en gramos. */
+export function fmtConcepto(metric, v) {
+  return metric === 'gr_contrato' || metric === 'venta_oro' || metric === 'venta_plata' ? fmtGr(v) : fmtByMetric(metric, v);
+}
 
 /** Construye un esqueleto vacío { [branch]: { '2025': {...}, '2026': {...} } } */
 export function emptyMonthlyData() {

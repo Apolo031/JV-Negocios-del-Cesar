@@ -8,7 +8,7 @@ import autoTable from 'jspdf-autotable';
 import Chart from 'chart.js/auto';
 import {
   BRANCHES, BRANCH_COLOR, ALL_METRICS, MONTH_NAMES_FULL, METRIC_LABEL,
-  fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtByMetric,
+  fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtConcepto,
   totalFor, totalAll, lastActiveMonth2026, parseFechaSemanal,
 } from './dataHelpers';
 
@@ -16,10 +16,6 @@ const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', 
 
 const GOLD = [199, 163, 57];
 const DARK = [26, 32, 41];
-
-function fmtCell(metric, v) {
-  return metric === 'gr_contrato' || metric === 'venta_oro' || metric === 'venta_plata' ? fmtGr(v) : fmtByMetric(metric, v);
-}
 
 function sectionHeader(doc, text, y) {
   doc.setFontSize(12);
@@ -140,8 +136,8 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
   y = sectionHeader(doc, `Indicadores por sucursal (2026, Ene–${monthLabel})`, y);
   const matrixBody = ALL_METRICS.map((metric) => [
     METRIC_LABEL[metric],
-    ...BRANCHES.map((b) => fmtCell(metric, totalFor(monthly, b, '2026', metric, uptoFull))),
-    fmtCell(metric, totalAll(monthly, '2026', metric, uptoFull)),
+    ...BRANCHES.map((b) => fmtConcepto(metric, totalFor(monthly, b, '2026', metric, uptoFull))),
+    fmtConcepto(metric, totalAll(monthly, '2026', metric, uptoFull)),
   ]);
   matrixBody.push([
     'Margen (%)',
