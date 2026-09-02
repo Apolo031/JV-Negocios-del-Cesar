@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
-  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL,
+  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES_FULL,
   fmtByMetric, fmtMoneyShort, fmtPct, isMoney, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
@@ -15,7 +15,8 @@ export default function ComparativoPage() {
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
   const lastM = lastActiveMonth2026(monthly);
-  const cutoff = Math.min(lastM + 1, 6);
+  const cutoff = lastM + 1;
+  const periodo = `Ene–${MONTH_NAMES_FULL[lastM].slice(0, 3)}`;
   const d25 = BRANCHES.map((b) => totalFor(monthly, b, '2025', metric, cutoff));
   const d26 = BRANCHES.map((b) => totalFor(monthly, b, '2026', metric, cutoff));
 
@@ -24,7 +25,7 @@ export default function ComparativoPage() {
       <div className="topbar">
         <div>
           <h1>Comparativo entre sucursales</h1>
-          <p>Enero–junio 2025 vs. enero–junio 2026, para comparar periodos equivalentes</p>
+          <p>Enero–{MONTH_NAMES_FULL[lastM].toLowerCase()} 2025 vs. enero–{MONTH_NAMES_FULL[lastM].toLowerCase()} 2026, para comparar periodos equivalentes</p>
         </div>
         <select value={metric} onChange={(e) => setMetric(e.target.value)}>
           {ALL_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
@@ -32,7 +33,7 @@ export default function ComparativoPage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>{METRIC_LABEL[metric]} por sucursal (Ene–Jun)</h3></div>
+        <div className="panel-head"><h3>{METRIC_LABEL[metric]} por sucursal ({periodo})</h3></div>
         <ChartCanvas
           height={110}
           config={{
@@ -40,8 +41,8 @@ export default function ComparativoPage() {
             data: {
               labels: BRANCHES,
               datasets: [
-                { label: 'Ene–Jun 2025', data: d25, backgroundColor: '#3a4152', borderRadius: 4 },
-                { label: 'Ene–Jun 2026', data: d26, backgroundColor: '#c7a339', borderRadius: 4 },
+                { label: `${periodo} 2025`, data: d25, backgroundColor: '#3a4152', borderRadius: 4 },
+                { label: `${periodo} 2026`, data: d26, backgroundColor: '#c7a339', borderRadius: 4 },
               ],
             },
             options: {
@@ -53,9 +54,9 @@ export default function ComparativoPage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>Variación Ene–Jun 2025 vs Ene–Jun 2026</h3></div>
+        <div className="panel-head"><h3>Variación {periodo} 2025 vs {periodo} 2026</h3></div>
         <table>
-          <thead><tr><th style={{ textAlign: 'left' }}>Sucursal</th><th>Ene–Jun 2025</th><th>Ene–Jun 2026</th><th>Variación</th></tr></thead>
+          <thead><tr><th style={{ textAlign: 'left' }}>Sucursal</th><th>{periodo} 2025</th><th>{periodo} 2026</th><th>Variación</th></tr></thead>
           <tbody>
             {BRANCHES.map((b) => {
               const v25 = totalFor(monthly, b, '2025', metric, cutoff);
