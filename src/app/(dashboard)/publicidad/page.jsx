@@ -2,38 +2,46 @@
 
 import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
 
-// Firestore limita cada documento a 1MB total, y el base64 le suma ~33% al
-// peso original de cada archivo — así que el límite real es sobre la SUMA de
-// todos los adjuntos de un mismo registro, no sobre cada archivo por separado.
-const MAX_TOTAL_PHOTO_BYTES = 700 * 1024;
+// Límite real de Firebase Storage para estos adjuntos (ver storage.rules): 8MB
+// por archivo. Ya no aplica el tope de 700KB de cuando se guardaban como
+// base64 dentro del documento de Firestore.
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+async function uploadAttachment(file, branch) {
+  const path = `publicidad/${branch}/${Date.now()}-${file.name}`;
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, file, { contentType: file.type });
+  const src = await getDownloadURL(fileRef);
+  return { src, name: file.name, path, type: file.type };
 }
 
-// Los adjuntos viejos son solo el data URL (string); los nuevos son
-// {src, name} para poder mostrar de qué factura/archivo se trata.
+// Los adjuntos viejos son solo el data URL en base64 (string, o {src,name}
+// sin `path`); los nuevos son {src,name,path,type} con la URL de Storage.
 function photoSrc(p) { return typeof p === 'string' ? p : p?.src; }
 function photoName(p) { return typeof p === 'string' ? '' : (p?.name || ''); }
-function isPdf(p) { return (photoSrc(p) || '').startsWith('data:application/pdf'); }
+function isPdf(p) {
+  if (typeof p !== 'object' || !p) return (photoSrc(p) || '').startsWith('data:application/pdf');
+  if (p.type) return p.type === 'application/pdf';
+  return (p.src || '').startsWith('data:application/pdf') || /\.pdf(\?|$)/i.test(p.src || '');
+}
 
 // Chrome (y otros) bloquean o dejan en blanco la navegación directa de una
-// pestaña nueva a una URL "data:" grande. Convertirla a un blob: sí se abre bien.
+// pestaña nueva a una URL "data:" grande. Convertirla a un blob: sí se abre
+// bien. Los adjuntos nuevos ya son una URL https normal de Storage, así que
+// se abren directo sin necesidad de este rodeo.
 function openAttachment(p) {
-  const dataUrl = photoSrc(p);
-  if (!dataUrl) return;
+  const src = photoSrc(p);
+  if (!src) return;
+  if (!src.startsWith('data:')) { window.open(src, '_blank'); return; }
   try {
-    const [meta, base64] = dataUrl.split(',');
+    const [meta, base64] = src.split(',');
     const mime = meta.match(/data:(.*);base64/)?.[1] || 'application/octet-stream';
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -42,7 +50,7 @@ function openAttachment(p) {
     window.open(blobUrl, '_blank');
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   } catch (err) {
-    window.open(dataUrl, '_blank');
+    window.open(src, '_blank');
   }
 }
 
@@ -81,9 +89,9 @@ export default function PublicidadPage() {
     e.preventDefault();
     if (!form.fecha) { alert('Elige la fecha en que se hizo la publicidad.'); return; }
 
-    const totalBytes = files.reduce((s, f) => s + f.size, 0);
-    if (totalBytes > MAX_TOTAL_PHOTO_BYTES) {
-      alert(`Los archivos adjuntos pesan demasiado entre todos (${(totalBytes / 1024).toFixed(0)}KB, máx. ~700KB en total mientras no tengamos Firebase Storage activado). Adjunta menos archivos o comprímelos.`);
+    const tooBig = files.find((f) => f.size > MAX_FILE_BYTES);
+    if (tooBig) {
+      alert(`"${tooBig.name}" pesa demasiado (máx. 8MB por archivo). Comprímelo o usa uno más liviano.`);
       return;
     }
 
@@ -91,7 +99,7 @@ export default function PublicidadPage() {
     try {
       const photoUrls = [];
       for (const file of files) {
-        photoUrls.push({ src: await readFileAsDataURL(file), name: file.name });
+        photoUrls.push(await uploadAttachment(file, form.branch));
       }
       await addPublicidad({
         branch: form.branch, fecha: form.fecha, medio: form.medio,
@@ -193,7 +201,7 @@ export default function PublicidadPage() {
               <input type="text" placeholder="Ej: promo de julio" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} style={{ width: '100%' }} />
             </div>
             <div className="fg-span5">
-              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos o PDF (opcional, máx. ~700KB entre todos los archivos)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fotos o PDF (opcional, máx. 8MB por archivo)</div>
               <input type="file" accept="image/*,application/pdf" multiple onChange={(e) => setFiles(Array.from(e.target.files))} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
             </div>
             <button className="btn" type="submit" disabled={uploading}>{uploading ? 'Guardando…' : '+ Agregar'}</button>
@@ -245,7 +253,7 @@ export default function PublicidadPage() {
                     <div className="alert-title"><span className="tag-dot" style={{ background: BRANCH_COLOR[p.branch] }} />{p.fecha} · {p.branch} · {p.medio}</div>
                     <div className="alert-desc">{p.desc || '(sin descripción)'} — {fmtMoney(p.costo)}</div>
                   </div>
-                  {isAdmin && <button className="btn-outline" onClick={() => deletePublicidad(p.id)}>Eliminar</button>}
+                  {isAdmin && <button className="btn-outline" onClick={() => deletePublicidad(p.id, p.photos)}>Eliminar</button>}
                 </div>
                 {p.photos?.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>

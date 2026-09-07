@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import {
   collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebaseClient';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebaseClient';
 import { useAuth } from './AuthContext';
 import { BRANCHES, EDIT_METRICS, emptyMonthlyData, sortWeekly } from '@/lib/dataHelpers';
 
@@ -65,7 +66,13 @@ export function DataProvider({ children }) {
   const addPublicidad = useCallback(async (entry) => {
     return addDoc(collection(db, 'publicidad'), { ...entry, createdAt: Date.now() });
   }, []);
-  const deletePublicidad = useCallback(async (id) => deleteDoc(doc(db, 'publicidad', id)), []);
+  const deletePublicidad = useCallback(async (id, photos) => {
+    await Promise.all((photos || []).map((p) => {
+      if (!p?.path) return null; // adjuntos viejos guardados como base64 no tienen archivo en Storage
+      return deleteObject(ref(storage, p.path)).catch(() => {});
+    }));
+    return deleteDoc(doc(db, 'publicidad', id));
+  }, []);
 
   const addPendiente = useCallback(async (entry) => {
     return addDoc(collection(db, 'pendientes'), { ...entry, done: false, createdAt: Date.now() });
