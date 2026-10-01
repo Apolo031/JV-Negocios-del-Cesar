@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, fmtGr, fmtNum, fmtPct } from '@/lib/dataHelpers';
@@ -22,9 +23,18 @@ const WEEK_METRIC_IS_MONEY = {
 };
 const WEEK_METRIC_IS_GRAMS = { gramos: true, venta_oro: true, venta_plata: true };
 
-export default function SemanalPage() {
+function SemanalInner() {
   const { weekly, loading } = useData();
   const [metric, setMetric] = useState('utilidad');
+  const searchParams = useSearchParams();
+  const branchParam = searchParams.get('branch');
+  const rowRef = useRef(null);
+
+  useEffect(() => {
+    if (branchParam && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [branchParam]);
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
   if (weekly.length === 0) {
@@ -87,7 +97,7 @@ export default function SemanalPage() {
                 else { const pct = ((v2 - v1) / Math.abs(v1)) * 100; pill = <span className={`pill ${pct >= 0 ? 'pos' : 'neg'}`}>{fmtPct(pct)}</span>; }
               }
               return (
-                <tr key={b}>
+                <tr key={b} ref={b === branchParam ? rowRef : null} className={b === branchParam ? 'highlight-red' : ''}>
                   <td className="name"><span className="tag-dot" style={{ background: BRANCH_COLOR[b] }} />{b}</td>
                   <td>{fmtWeek(v1)}</td><td>{v2 !== null ? fmtWeek(v2) : '—'}</td><td>{pill}</td>
                 </tr>
@@ -97,5 +107,13 @@ export default function SemanalPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+export default function SemanalPage() {
+  return (
+    <Suspense fallback={<div style={{ color: 'var(--text-dim)' }}>Cargando…</div>}>
+      <SemanalInner />
+    </Suspense>
   );
 }

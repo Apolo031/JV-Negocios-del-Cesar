@@ -9,7 +9,12 @@ import {
 
 const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
 
-function branchLink(branch) { return `/detalle?branch=${encodeURIComponent(branch)}`; }
+function branchLink(branch, { metric, month } = {}) {
+  const params = new URLSearchParams({ branch });
+  if (metric) params.set('metric', metric);
+  if (month !== undefined) params.set('month', String(month));
+  return `/detalle?${params.toString()}`;
+}
 
 function buildAlerts(monthly, weekly) {
   const alerts = [];
@@ -18,7 +23,7 @@ function buildAlerts(monthly, weekly) {
   BRANCHES.forEach((b) => {
     const t25 = totalFor(monthly, b, '2025', 'valor_contratado', 12);
     if (t25 === 0) {
-      alerts.push({ sev: 'med', icon: '●', title: `${b}: sucursal en arranque`, href: branchLink(b),
+      alerts.push({ sev: 'med', icon: '●', title: `${b}: sucursal en arranque`, href: branchLink(b, { metric: 'valor_contratado' }),
         desc: `No registró contratos en 2025. Toda su operación es de 2026, así que conviene revisarla con más frecuencia mientras estabiliza su ritmo.` });
     }
   });
@@ -29,7 +34,7 @@ function buildAlerts(monthly, weekly) {
       const prev = s[lastM - 1], cur = s[lastM];
       if (prev > 0 && cur < prev * 0.7) {
         const pct = ((cur - prev) / prev) * 100;
-        alerts.push({ sev: 'high', icon: '▼', title: `${b}: caída de utilidad en ${MONTH_NAMES_FULL[lastM]}`, href: branchLink(b),
+        alerts.push({ sev: 'high', icon: '▼', title: `${b}: caída de utilidad en ${MONTH_NAMES_FULL[lastM]}`, href: branchLink(b, { metric: 'utilidad', month: lastM }),
           desc: `La utilidad pasó de ${fmtMoney(prev)} en ${MONTH_NAMES_FULL[lastM - 1]} a ${fmtMoney(cur)} (${fmtPct(pct)}). Vale la pena revisar qué cambió.` });
       }
     }
@@ -41,7 +46,7 @@ function buildAlerts(monthly, weekly) {
     if (vc > 0) {
       const ratio = (pr / vc) * 100;
       if (ratio > 2.5) {
-        alerts.push({ sev: 'med', icon: '!', title: `${b}: alta proporción de prórrogas`, href: branchLink(b),
+        alerts.push({ sev: 'med', icon: '!', title: `${b}: alta proporción de prórrogas`, href: branchLink(b, { metric: 'prorroga', month: lastM }),
           desc: `Las prórrogas equivalen al ${ratio.toFixed(1)}% del valor contratado en lo corrido de 2026 (${fmtMoney(pr)}). Puede ser señal de clientes con dificultad para cancelar a tiempo.` });
       }
     }
@@ -54,7 +59,7 @@ function buildAlerts(monthly, weekly) {
       const v1 = w0.sucursales?.[k]?.utilidad || 0;
       const v2 = w1.sucursales?.[k]?.utilidad || 0;
       if (v1 > 0 && v2 < v1 * 0.5) {
-        alerts.push({ sev: 'high', icon: '▼', title: `${b}: utilidad semanal a la baja`, href: '/semanal',
+        alerts.push({ sev: 'high', icon: '▼', title: `${b}: utilidad semanal a la baja`, href: `/semanal?branch=${encodeURIComponent(b)}`,
           desc: `Bajó de ${fmtMoney(v1)} (${w0.fecha}) a ${fmtMoney(v2)} (${w1.fecha}). Conviene confirmar con la sucursal esta misma semana.` });
       }
     });
@@ -64,7 +69,7 @@ function buildAlerts(monthly, weekly) {
   if (anySilver) {
     BRANCHES.forEach((b) => {
       if (totalFor(monthly, b, '2026', 'valor_venta_plata', lastM + 1) === 0 && totalFor(monthly, b, '2026', 'valor_contratado', lastM + 1) > 0) {
-        alerts.push({ sev: 'low', icon: 'i', title: `${b}: sin venta de plata en 2026`, href: branchLink(b),
+        alerts.push({ sev: 'low', icon: 'i', title: `${b}: sin venta de plata en 2026`, href: branchLink(b, { metric: 'valor_venta_plata' }),
           desc: `Otras sucursales sí están vendiendo plata este año. Podría ser una línea adicional de ingreso que ${b} no está aprovechando.` });
       }
     });
@@ -72,7 +77,7 @@ function buildAlerts(monthly, weekly) {
 
   const rank = BRANCHES.map((b) => ({ b, v: totalFor(monthly, b, '2026', 'utilidad', lastM + 1) })).sort((a, b) => b.v - a.v);
   if (rank[0] && rank[0].v > 0) {
-    alerts.push({ sev: 'low', icon: '★', title: `${rank[0].b} lidera en utilidad`, href: branchLink(rank[0].b),
+    alerts.push({ sev: 'low', icon: '★', title: `${rank[0].b} lidera en utilidad`, href: branchLink(rank[0].b, { metric: 'utilidad' }),
       desc: `Acumula ${fmtMoney(rank[0].v)} en lo corrido de 2026, la cifra más alta entre las joyerías.` });
   }
 

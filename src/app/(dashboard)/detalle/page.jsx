@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
@@ -14,15 +14,29 @@ function DetalleInner() {
   const { monthly, loading } = useData();
   const searchParams = useSearchParams();
   const branchParam = searchParams.get('branch');
+  const metricParam = searchParams.get('metric');
+  const monthParamRaw = searchParams.get('month');
+  const monthParam = monthParamRaw !== null && !isNaN(parseInt(monthParamRaw, 10)) ? parseInt(monthParamRaw, 10) : null;
   const [branch, setBranch] = useState(() => (branchParam && BRANCHES.includes(branchParam)) ? branchParam : BRANCHES[0]);
+  const [year, setYear] = useState('2026');
+  const [metric, setMetric] = useState(() => (metricParam && ALL_METRICS.includes(metricParam)) ? metricParam : 'utilidad');
+  const rowRef = useRef(null);
 
-  // Si llegamos desde un enlace (ej. una alerta) con ?branch=X, seleccionarla
-  // aunque el componente ya estuviera montado en otra sucursal.
+  // Si llegamos desde un enlace (ej. una alerta) con ?branch=/metric=/month=,
+  // aplicarlos aunque el componente ya estuviera montado con otros valores.
   useEffect(() => {
     if (branchParam && BRANCHES.includes(branchParam)) setBranch(branchParam);
-  }, [branchParam]);
-  const [year, setYear] = useState('2026');
-  const [metric, setMetric] = useState('utilidad');
+    if (metricParam && ALL_METRICS.includes(metricParam)) setMetric(metricParam);
+    if (monthParam !== null) setYear('2026');
+  }, [branchParam, metricParam, monthParam]);
+
+  useEffect(() => {
+    if (monthParam !== null && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthParam, branch]);
+
   const lastM0 = lastActiveMonth2026(monthly);
   const [cmpA, setCmpA] = useState({ year: '2026', month: lastM0 });
   const [cmpB, setCmpB] = useState({ year: '2025', month: lastM0 });
@@ -70,10 +84,10 @@ function DetalleInner() {
       </div>
 
       <div className="kpi-row">
-        <div className="kpi"><div className="label">Valor contratado</div><div className="value">{fmtMoney(totVc)}</div></div>
-        <div className="kpi"><div className="label">Utilidad</div><div className="value">{fmtMoney(totUt)}</div></div>
+        <div className={`kpi${metricParam === 'valor_contratado' ? ' highlight-red' : ''}`}><div className="label">Valor contratado</div><div className="value">{fmtMoney(totVc)}</div></div>
+        <div className={`kpi${metricParam === 'utilidad' ? ' highlight-red' : ''}`}><div className="label">Utilidad</div><div className="value">{fmtMoney(totUt)}</div></div>
         <div className="kpi"><div className="label">Margen</div><div className="value">{margen.toFixed(1)}%</div></div>
-        <div className="kpi"><div className="label">Gramos en contrato</div><div className="value">{fmtGr(totGr)}</div></div>
+        <div className={`kpi${metricParam === 'gr_contrato' ? ' highlight-red' : ''}`}><div className="label">Gramos en contrato</div><div className="value">{fmtGr(totGr)}</div></div>
       </div>
 
       <div className="panel">
@@ -176,7 +190,7 @@ function DetalleInner() {
             <thead><tr><th style={{ textAlign: 'left' }}>Mes</th><th>Gramos</th><th>Valor contratado</th><th>Utilidad</th><th>Prórroga</th><th>Venta oro (g)</th><th>Venta oro ($)</th><th>Efecty</th><th>Sistecrédito</th></tr></thead>
             <tbody>
               {Array.from({ length: year === '2026' ? lastM + 1 : 12 }).map((_, m) => (
-                <tr key={m}>
+                <tr key={m} ref={m === monthParam && year === '2026' ? rowRef : null} className={m === monthParam && year === '2026' ? 'highlight-red' : ''}>
                   <td className="name">{MONTH_NAMES_FULL[m]}</td>
                   <td>{fmtGr(series(monthly, branch, year, 'gr_contrato')[m])}</td>
                   <td>{fmtMoney(series(monthly, branch, year, 'valor_contratado')[m])}</td>
