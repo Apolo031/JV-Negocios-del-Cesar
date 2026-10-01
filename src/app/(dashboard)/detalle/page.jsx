@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
@@ -9,9 +10,17 @@ import {
   series, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
-export default function DetallePage() {
+function DetalleInner() {
   const { monthly, loading } = useData();
-  const [branch, setBranch] = useState(BRANCHES[0]);
+  const searchParams = useSearchParams();
+  const branchParam = searchParams.get('branch');
+  const [branch, setBranch] = useState(() => (branchParam && BRANCHES.includes(branchParam)) ? branchParam : BRANCHES[0]);
+
+  // Si llegamos desde un enlace (ej. una alerta) con ?branch=X, seleccionarla
+  // aunque el componente ya estuviera montado en otra sucursal.
+  useEffect(() => {
+    if (branchParam && BRANCHES.includes(branchParam)) setBranch(branchParam);
+  }, [branchParam]);
   const [year, setYear] = useState('2026');
   const [metric, setMetric] = useState('utilidad');
   const lastM0 = lastActiveMonth2026(monthly);
@@ -184,5 +193,13 @@ export default function DetallePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DetallePage() {
+  return (
+    <Suspense fallback={<div style={{ color: 'var(--text-dim)' }}>Cargando…</div>}>
+      <DetalleInner />
+    </Suspense>
   );
 }
