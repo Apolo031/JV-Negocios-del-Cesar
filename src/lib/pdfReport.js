@@ -67,15 +67,28 @@ async function barChartImage({ labels, data, colors, title }) {
  * @param {object} params
  * @param {object} params.monthly
  * @param {Array} params.weekly
- * @param {number} [params.cutoffMonth] Índice de mes (0=Ene..11=Dic) hasta el que se acumula el
- *   reporte 2026. Si no se pasa, usa el último mes con datos.
+ * @param {number} [params.cutoffMonth] Índice de mes (0=Ene..11=Dic). Si `singleMonth` es true, es
+ *   el mes puntual a reportar; si no, es el mes hasta el que se acumula (Ene-cutoffMonth). Si no se
+ *   pasa, usa el último mes con datos.
+ * @param {boolean} [params.singleMonth] true = reporta solo ese mes puntual (no acumulado).
  */
-export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth }) {
+export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth, singleMonth }) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const lastM = lastActiveMonth2026(monthly);
   const monthIdx = cutoffMonth === undefined || cutoffMonth === null ? lastM : cutoffMonth;
   const uptoFull = monthIdx + 1;
   const monthLabel = MONTH_NAMES_FULL[monthIdx];
+  const periodoLabel = singleMonth ? monthLabel : `Ene–${monthLabel}`;
+
+  // Valor de un concepto para una sucursal: si `singleMonth`, el mes puntual
+  // (no acumulado); si no, acumulado Ene-uptoFull. `y` es el año explícito,
+  // para poder comparar contra el mismo periodo de 2025.
+  function valFor(y, branch, metric) {
+    return singleMonth ? (series(monthly, branch, y, metric)[monthIdx] || 0) : totalFor(monthly, branch, y, metric, uptoFull);
+  }
+  function valAllFor(y, metric) {
+    return BRANCHES.reduce((s, b) => s + valFor(y, b, metric), 0);
+  }
 
   // --- Encabezado ---
   doc.setFontSize(18);
@@ -86,14 +99,14 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
   doc.setFontSize(10);
   doc.setTextColor(90, 90, 90);
   doc.text(
-    `Generado el ${new Date().toLocaleString('es-CO')} · Año en curso 2026, Ene–${monthLabel}`,
+    `Generado el ${new Date().toLocaleString('es-CO')} · ${singleMonth ? monthLabel + ' 2026' : `Año en curso 2026, ${periodoLabel}`}`,
     14, 22
   );
 
   // --- KPIs consolidados ---
-  const totalContratado = totalAll(monthly, '2026', 'valor_contratado', uptoFull);
-  const totalUtilidad = totalAll(monthly, '2026', 'utilidad', uptoFull);
-  const totalGramos = totalAll(monthly, '2026', 'gr_contrato', uptoFull);
+  const totalContratado = valAllFor('2026', 'valor_contratado');
+  const totalUtilidad = valAllFor('2026', 'utilidad');
+  const totalGramos = valAllFor('2026', 'gr_contrato');
   const margenGlobal = totalContratado ? (totalUtilidad / totalContratado) * 100 : 0;
 
   autoTable(doc, {
@@ -115,15 +128,15 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
   const [utilidadImg, contratadoImg] = await Promise.all([
     barChartImage({
       labels: BRANCHES,
-      data: BRANCHES.map((b) => totalFor(monthly, b, '2026', 'utilidad', uptoFull)),
+      data: BRANCHES.map((b) => valFor('2026', b, 'utilidad')),
       colors: chartColors,
-      title: `Utilidad por sucursal (Ene–${monthLabel})`,
+      title: `Utilidad por sucursal (${periodoLabel})`,
     }),
     barChartImage({
       labels: BRANCHES,
-      data: BRANCHES.map((b) => totalFor(monthly, b, '2026', 'valor_contratado', uptoFull)),
+      data: BRANCHES.map((b) => valFor('2026', b, 'valor_contratado')),
       colors: chartColors,
-      title: `Valor contratado por sucursal (Ene–${monthLabel})`,
+      title: `Valor contratado por sucursal (${periodoLabel})`,
     }),
   ]);
   const chartW = 130, chartH = (chartW * 420) / 900;
@@ -133,17 +146,17 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
 
   // --- Tabla comparativa: cada indicador (fila) por cada sucursal (columna) ---
   y = ensureSpace(doc, y, 90);
-  y = sectionHeader(doc, `Indicadores por sucursal (2026, Ene–${monthLabel})`, y);
+  y = sectionHeader(doc, `Indicadores por sucursal (2026, ${periodoLabel})`, y);
   const matrixBody = ALL_METRICS.map((metric) => [
     METRIC_LABEL[metric],
-    ...BRANCHES.map((b) => fmtConcepto(metric, totalFor(monthly, b, '2026', metric, uptoFull))),
-    fmtConcepto(metric, totalAll(monthly, '2026', metric, uptoFull)),
+    ...BRANCHES.map((b) => fmtConcepto(metric, valFor('2026', b, metric))),
+    fmtConcepto(metric, valAllFor('2026', metric)),
   ]);
   matrixBody.push([
     'Margen (%)',
     ...BRANCHES.map((b) => {
-      const vc = totalFor(monthly, b, '2026', 'valor_contratado', uptoFull);
-      const ut = totalFor(monthly, b, '2026', 'utilidad', uptoFull);
+      const vc = valFor('2026', b, 'valor_contratado');
+      const ut = valFor('2026', b, 'utilidad');
       return vc ? (ut / vc * 100).toFixed(1) + '%' : '—';
     }),
     margenGlobal.toFixed(1) + '%',
@@ -165,14 +178,14 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
   });
   y = doc.lastAutoTable.finalY + 8;
 
-  // --- Variación año contra año (mismo periodo, Ene–mes elegido) ---
+  // --- Variación año contra año (mismo periodo) ---
   y = ensureSpace(doc, y, 60);
-  y = sectionHeader(doc, `Variación Ene–${monthLabel} 2025 vs. 2026`, y);
+  y = sectionHeader(doc, `Variación ${periodoLabel} 2025 vs. 2026`, y);
   const yoyBody = BRANCHES.map((b) => {
-    const ut25 = totalFor(monthly, b, '2025', 'utilidad', uptoFull);
-    const ut26 = totalFor(monthly, b, '2026', 'utilidad', uptoFull);
-    const vc25 = totalFor(monthly, b, '2025', 'valor_contratado', uptoFull);
-    const vc26 = totalFor(monthly, b, '2026', 'valor_contratado', uptoFull);
+    const ut25 = valFor('2025', b, 'utilidad');
+    const ut26 = valFor('2026', b, 'utilidad');
+    const vc25 = valFor('2025', b, 'valor_contratado');
+    const vc26 = valFor('2026', b, 'valor_contratado');
     const utVar = ut25 ? fmtPct(((ut26 - ut25) / Math.abs(ut25)) * 100) : (ut26 ? 'Nueva' : '—');
     const vcVar = vc25 ? fmtPct(((vc26 - vc25) / Math.abs(vc25)) * 100) : (vc26 ? 'Nueva' : '—');
     return [b, fmtMoney(ut25), fmtMoney(ut26), utVar, fmtMoney(vc25), fmtMoney(vc26), vcVar];
@@ -190,8 +203,8 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
 
   // --- Ranking de utilidad ---
   y = ensureSpace(doc, y, 55);
-  y = sectionHeader(doc, `Ranking de utilidad (Ene–${monthLabel} 2026)`, y);
-  const rank = BRANCHES.map((b) => ({ b, v: totalFor(monthly, b, '2026', 'utilidad', uptoFull) })).sort((a, c) => c.v - a.v);
+  y = sectionHeader(doc, `Ranking de utilidad (${periodoLabel} 2026)`, y);
+  const rank = BRANCHES.map((b) => ({ b, v: valFor('2026', b, 'utilidad') })).sort((a, c) => c.v - a.v);
   const rankTotal = rank.reduce((s, r) => s + r.v, 0);
   autoTable(doc, {
     startY: y,
@@ -246,7 +259,8 @@ export async function generateGeneralReportPdf({ monthly, weekly, cutoffMonth })
   }
 
   const fecha = new Date().toISOString().slice(0, 10);
-  doc.save(`resumen-general-joyerias-${monthLabel.toLowerCase()}-${fecha}.pdf`);
+  const prefijo = singleMonth ? monthLabel.toLowerCase() : `ene-${monthLabel.toLowerCase()}`;
+  doc.save(`resumen-general-joyerias-${prefijo}-${fecha}.pdf`);
 }
 
 /**

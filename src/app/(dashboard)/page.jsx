@@ -15,10 +15,8 @@ export default function ResumenPage() {
   const [mesIndividual, setMesIndividual] = useState(null); // null = usa el último mes con datos
   const [trendMetric, setTrendMetric] = useState('utilidad');
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [pdfMonth, setPdfMonth] = useState(null); // null = usa el último mes con datos
 
   const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
-  const pdfMonthValue = pdfMonth === null ? lastM : pdfMonth;
   const mesSel = mesIndividual === null ? lastM : mesIndividual;
   const isMes = period === 'mes';
   const year = period === '2025' ? '2025' : '2026';
@@ -39,7 +37,7 @@ export default function ResumenPage() {
     setGeneratingPdf(true);
     try {
       const { generateGeneralReportPdf } = await import('@/lib/pdfReport');
-      await generateGeneralReportPdf({ monthly, weekly, cutoffMonth: pdfMonthValue });
+      await generateGeneralReportPdf({ monthly, weekly, cutoffMonth: mesSel, singleMonth: isMes });
     } finally {
       setGeneratingPdf(false);
     }
@@ -105,11 +103,6 @@ export default function ResumenPage() {
               ))}
             </select>
           )}
-          <select value={pdfMonthValue} onChange={(e) => setPdfMonth(parseInt(e.target.value, 10))} title="Mes de corte del PDF">
-            {MONTH_NAMES_FULL.slice(0, lastM + 1).map((m, i) => (
-              <option key={m} value={i}>Hasta {m}</option>
-            ))}
-          </select>
           <button className="btn-outline" type="button" onClick={handleDownloadPdf} disabled={generatingPdf || loading}>
             {generatingPdf ? 'Generando…' : '⭳ Descargar PDF'}
           </button>
