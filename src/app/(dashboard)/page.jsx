@@ -6,20 +6,34 @@ import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
   BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
   fmtMoney, fmtMoneyShort, fmtGr, fmtPct, fmtConcepto,
-  sumSeries, totalFor, totalAll, lastActiveMonth2026,
+  sumSeries, series, totalFor, totalAll, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
 export default function ResumenPage() {
   const { monthly, weekly, loading } = useData();
-  const [period, setPeriod] = useState('ytd');
+  const [period, setPeriod] = useState('ytd'); // 'ytd' | 'mes' | '2025'
+  const [mesIndividual, setMesIndividual] = useState(null); // null = usa el último mes con datos
   const [trendMetric, setTrendMetric] = useState('utilidad');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfMonth, setPdfMonth] = useState(null); // null = usa el último mes con datos
 
   const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
   const pdfMonthValue = pdfMonth === null ? lastM : pdfMonth;
-  const year = period === 'ytd' ? '2026' : '2025';
-  const upto = period === 'ytd' ? lastM + 1 : 12;
+  const mesSel = mesIndividual === null ? lastM : mesIndividual;
+  const isMes = period === 'mes';
+  const year = period === '2025' ? '2025' : '2026';
+  const upto = period === '2025' ? 12 : lastM + 1;
+
+  // Valor de un concepto para una sucursal en el periodo elegido: si es "Un
+  // mes" se toma solo ese mes puntual (no acumulado); si no, se acumula
+  // Ene-hasta `upto`. Recibe el año explícito para poder comparar contra el
+  // mismo periodo de 2025.
+  function valFor(y, branch, metric) {
+    return isMes ? (series(monthly, branch, y, metric)[mesSel] || 0) : totalFor(monthly, branch, y, metric, upto);
+  }
+  function valAllFor(y, metric) {
+    return BRANCHES.reduce((s, b) => s + valFor(y, b, metric), 0);
+  }
 
   async function handleDownloadPdf() {
     setGeneratingPdf(true);
@@ -33,32 +47,34 @@ export default function ResumenPage() {
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
-  const totalContratado = totalAll(monthly, year, 'valor_contratado', upto);
-  const totalUtilidad = totalAll(monthly, year, 'utilidad', upto);
-  const totalGramos = totalAll(monthly, year, 'gr_contrato', upto);
+  const totalContratado = valAllFor(year, 'valor_contratado');
+  const totalUtilidad = valAllFor(year, 'utilidad');
+  const totalGramos = valAllFor(year, 'gr_contrato');
   const margen = totalContratado ? (totalUtilidad / totalContratado) * 100 : 0;
 
   let deltaContratado = null, deltaUtilidad = null;
-  if (period === 'ytd') {
-    const prevContratado = totalAll(monthly, '2025', 'valor_contratado', upto);
-    const prevUtilidad = totalAll(monthly, '2025', 'utilidad', upto);
+  if (period !== '2025') {
+    const prevContratado = valAllFor('2025', 'valor_contratado');
+    const prevUtilidad = valAllFor('2025', 'utilidad');
     deltaContratado = prevContratado ? ((totalContratado - prevContratado) / Math.abs(prevContratado)) * 100 : null;
     deltaUtilidad = prevUtilidad ? ((totalUtilidad - prevUtilidad) / Math.abs(prevUtilidad)) * 100 : null;
   }
 
-  const rankUtilidad = BRANCHES.map((b) => ({ b, v: totalFor(monthly, b, year, 'utilidad', upto) })).sort((a, b) => b.v - a.v);
+  const rankUtilidad = BRANCHES.map((b) => ({ b, v: valFor(year, b, 'utilidad') })).sort((a, b) => b.v - a.v);
   const maxUtilidad = Math.max(1, ...rankUtilidad.map((r) => r.v));
 
-  const rankGramos = BRANCHES.map((b) => ({ b, v: totalFor(monthly, b, year, 'gr_contrato', upto) })).sort((a, b) => b.v - a.v);
+  const rankGramos = BRANCHES.map((b) => ({ b, v: valFor(year, b, 'gr_contrato') })).sort((a, b) => b.v - a.v);
   const totalGramosRank = rankGramos.reduce((s, r) => s + r.v, 0);
   const maxGramos = Math.max(1, ...rankGramos.map((r) => r.v));
 
   const mixParts = [
-    { k: 'Utilidad créditos', v: totalAll(monthly, year, 'utilidad', upto), c: '#c7a339' },
-    { k: 'Prórrogas', v: totalAll(monthly, year, 'prorroga', upto), c: '#8a6a1f' },
-    { k: 'Venta de oro', v: totalAll(monthly, year, 'valor_venta_oro', upto), c: '#e8cd7a' },
-    { k: 'Venta de plata', v: totalAll(monthly, year, 'valor_venta_plata', upto), c: '#9b7ebd' },
+    { k: 'Utilidad créditos', v: valAllFor(year, 'utilidad'), c: '#c7a339' },
+    { k: 'Prórrogas', v: valAllFor(year, 'prorroga'), c: '#8a6a1f' },
+    { k: 'Venta de oro', v: valAllFor(year, 'valor_venta_oro'), c: '#e8cd7a' },
+    { k: 'Venta de plata', v: valAllFor(year, 'valor_venta_plata'), c: '#9b7ebd' },
   ].filter((p) => p.v > 0);
+
+  const periodoLabel = period === '2025' ? '2025, año completo' : (isMes ? `${MONTH_NAMES_FULL[mesSel]} 2026` : `2026, Ene–${MONTH_NAMES[lastM]}`);
 
   const s25 = sumSeries(monthly, '2025', trendMetric);
   const s26 = sumSeries(monthly, '2026', trendMetric).map((v, i) => (i <= lastM ? v : null));
@@ -75,10 +91,20 @@ export default function ResumenPage() {
             <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>
               Año en curso (Ene–{MONTH_NAMES[lastM]})
             </button>
+            <button className={`btn-toggle${isMes ? ' active' : ''}`} onClick={() => setPeriod('mes')}>
+              Un mes
+            </button>
             <button className={`btn-toggle${period === '2025' ? ' active' : ''}`} onClick={() => setPeriod('2025')}>
               Todo 2025
             </button>
           </div>
+          {isMes && (
+            <select value={mesSel} onChange={(e) => setMesIndividual(parseInt(e.target.value, 10))} title="Mes a mostrar">
+              {MONTH_NAMES_FULL.slice(0, lastM + 1).map((m, i) => (
+                <option key={m} value={i}>{m} 2026</option>
+              ))}
+            </select>
+          )}
           <select value={pdfMonthValue} onChange={(e) => setPdfMonth(parseInt(e.target.value, 10))} title="Mes de corte del PDF">
             {MONTH_NAMES_FULL.slice(0, lastM + 1).map((m, i) => (
               <option key={m} value={i}>Hasta {m}</option>
@@ -122,7 +148,7 @@ export default function ResumenPage() {
       <div className="panel">
         <div className="panel-head">
           <h3>Resultados por sucursal — todos los conceptos</h3>
-          <span className="hint">{period === 'ytd' ? `2026, Ene–${MONTH_NAMES[lastM]}` : '2025, año completo'}</span>
+          <span className="hint">{periodoLabel}</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table>
@@ -137,15 +163,15 @@ export default function ResumenPage() {
               {ALL_METRICS.map((metric) => (
                 <tr key={metric}>
                   <td className="name">{METRIC_LABEL[metric]}</td>
-                  {BRANCHES.map((b) => <td key={b}>{fmtConcepto(metric, totalFor(monthly, b, year, metric, upto))}</td>)}
-                  <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, totalAll(monthly, year, metric, upto))}</td>
+                  {BRANCHES.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
+                  <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, valAllFor(year, metric))}</td>
                 </tr>
               ))}
               <tr style={{ fontWeight: 700 }}>
                 <td className="name">Margen (%)</td>
                 {BRANCHES.map((b) => {
-                  const vc = totalFor(monthly, b, year, 'valor_contratado', upto);
-                  const ut = totalFor(monthly, b, year, 'utilidad', upto);
+                  const vc = valFor(year, b, 'valor_contratado');
+                  const ut = valFor(year, b, 'utilidad');
                   return <td key={b}>{vc ? (ut / vc * 100).toFixed(1) + '%' : '—'}</td>;
                 })}
                 <td>{margen.toFixed(1)}%</td>
@@ -159,7 +185,7 @@ export default function ResumenPage() {
         <div className="panel">
           <div className="panel-head">
             <h3>Ranking de utilidad por sucursal</h3>
-            <span className="hint">{period === 'ytd' ? `2026, Ene–${MONTH_NAMES[lastM]}` : '2025, año completo'}</span>
+            <span className="hint">{periodoLabel}</span>
           </div>
           {rankUtilidad.map((r, idx) => (
             <div className="ingot-row" key={r.b}>
@@ -173,7 +199,7 @@ export default function ResumenPage() {
         <div className="panel">
           <div className="panel-head">
             <h3>Mezcla del negocio</h3>
-            <span className="hint">{year} acumulado</span>
+            <span className="hint">{periodoLabel}</span>
           </div>
           <ChartCanvas
             height={230}
@@ -194,7 +220,7 @@ export default function ResumenPage() {
       <div className="panel">
         <div className="panel-head">
           <h3>Gramos en contrato por sucursal</h3>
-          <span className="hint">{period === 'ytd' ? `2026, Ene–${MONTH_NAMES[lastM]}` : '2025, año completo'}</span>
+          <span className="hint">{periodoLabel}</span>
         </div>
         {rankGramos.map((r, idx) => (
           <div className="ingot-row" key={r.b}>
@@ -233,7 +259,7 @@ export default function ResumenPage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>Consolidado mensual {year}{period === 'ytd' ? ` (Ene–${MONTH_NAMES[lastM]})` : ' (año completo)'}</h3></div>
+        <div className="panel-head"><h3>Consolidado mensual {year}{period !== '2025' ? ` (Ene–${MONTH_NAMES[lastM]})` : ' (año completo)'}</h3></div>
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead>
@@ -255,12 +281,23 @@ export default function ResumenPage() {
                   </tr>
                 );
               })}
-              <tr style={{ fontWeight: 700 }}>
-                <td className="name">Total</td>
-                <td>{fmtMoney(totalContratado)}</td><td>{fmtMoney(totalUtilidad)}</td><td>{margen.toFixed(1)}%</td>
-                <td>{fmtGr(totalGramos)}</td><td>{fmtMoney(totalAll(monthly, year, 'valor_venta_oro', upto))}</td>
-                <td>{fmtMoney(totalAll(monthly, year, 'prorroga', upto))}</td>
-              </tr>
+              {(() => {
+                // Esta tabla siempre muestra el acumulado Ene-upto completo
+                // (independiente de si arriba se eligió "Un mes"), así que su
+                // fila de Total se calcula aparte con totalAll puro.
+                const totalContratadoAcum = totalAll(monthly, year, 'valor_contratado', upto);
+                const totalUtilidadAcum = totalAll(monthly, year, 'utilidad', upto);
+                const totalGramosAcum = totalAll(monthly, year, 'gr_contrato', upto);
+                const margenAcum = totalContratadoAcum ? (totalUtilidadAcum / totalContratadoAcum) * 100 : 0;
+                return (
+                  <tr style={{ fontWeight: 700 }}>
+                    <td className="name">Total</td>
+                    <td>{fmtMoney(totalContratadoAcum)}</td><td>{fmtMoney(totalUtilidadAcum)}</td><td>{margenAcum.toFixed(1)}%</td>
+                    <td>{fmtGr(totalGramosAcum)}</td><td>{fmtMoney(totalAll(monthly, year, 'valor_venta_oro', upto))}</td>
+                    <td>{fmtMoney(totalAll(monthly, year, 'prorroga', upto))}</td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
