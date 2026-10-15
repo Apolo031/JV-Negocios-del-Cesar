@@ -11,6 +11,7 @@ const ITEMS = [
   { href: '/detalle', label: 'Detalle por sucursal' },
   { href: '/semanal', label: 'Seguimiento semanal' },
   { href: '/publicidad', label: 'Publicidad y pendientes' },
+  { href: '/contratos', label: 'Contratos' },
   { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },

@@ -56,6 +56,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Contratos (préstamos sobre oro) importados desde el archivo de control.
+    match /contratos/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Por defecto: todo lo demás queda cerrado. Cualquier colección nueva que
     // agregues debe declararse explícitamente arriba con sus propias reglas.
     match /{document=**} {
