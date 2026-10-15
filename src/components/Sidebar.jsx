@@ -13,6 +13,7 @@ const ITEMS = [
   { href: '/publicidad', label: 'Publicidad y pendientes' },
   { href: '/contratos', label: 'Contratos' },
   { href: '/facturas', label: 'Facturas (R+R)' },
+  { href: '/inventario', label: 'Inventario' },
   { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },

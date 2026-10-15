@@ -121,11 +121,18 @@ export function normalizedRow(row) {
   return out;
 }
 
-/** Aplica un FIELD_MAP ([encabezado, campo, tipo]) a una fila ya normalizada. */
+/**
+ * Aplica un FIELD_MAP ([encabezado, campo, tipo]) a una fila ya normalizada.
+ * Dos encabezados distintos pueden mapear al mismo campo (variantes del
+ * nombre de columna entre versiones del archivo, ej. "Cod Joyeria" vs
+ * "Codigo Joyeria"): si el encabezado no existe en este archivo (raw ===
+ * undefined) no se pisa lo que ya haya puesto una entrada anterior.
+ */
 export function mapRow(byNormalizedHeader, fieldMap) {
   const out = {};
   for (const [header, field, type] of fieldMap) {
     const raw = byNormalizedHeader[header];
+    if (raw === undefined && Object.prototype.hasOwnProperty.call(out, field)) continue;
     if (type === 'number') out[field] = parseNumber(raw);
     else if (type === 'percent') out[field] = parsePercent(raw);
     else if (type === 'date') out[field] = parseDate(raw);

@@ -69,6 +69,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Inventario de joyas (una pieza por documento, id = SKU). El archivo de
+    // origen es demasiado grande para subirlo desde el navegador, así que la
+    // carga/actualización la hace un script de administrador — pero la
+    // lectura funciona igual que las demás colecciones.
+    match /inventario/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Resumen agregado del inventario (totales, conteos por sociedad/estado/
+    // ciudad/categoría), calculado una sola vez al importar para no tener que
+    // recorrer las 300k+ piezas cada vez que alguien abre la página.
+    match /inventario_meta/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Por defecto: todo lo demás queda cerrado. Cualquier colección nueva que
     // agregues debe declararse explícitamente arriba con sus propias reglas.
     match /{document=**} {
