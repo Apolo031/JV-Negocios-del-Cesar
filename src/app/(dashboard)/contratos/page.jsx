@@ -30,6 +30,26 @@ function uniqueSorted(list) {
   return [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
+// "Joyeria" trae "<código>-<sociedad>" (ej. "013-EFECTIVA", "498-CAUCASIA");
+// la sociedad es el nombre después del guion, sin el código.
+function sociedadOf(joyeria) {
+  const s = String(joyeria || '').replace(/^\d+-\s*/, '').trim();
+  return s || joyeria || '';
+}
+
+// "Contrato Termino" usa la misma columna para dos unidades distintas: los
+// contratos de venta directa están a 15 días (no 15 meses), y el resto de
+// valores (1, 3, 4, 6...) sí son meses. Se distingue por el valor exacto 15.
+function tipoPlazo(termino) {
+  if (termino === 15) return 'Venta directa (15 días)';
+  return `A término (${termino} ${termino === 1 ? 'mes' : 'meses'})`;
+}
+const ORDEN_PLAZO = [15, 1, 3, 4, 6];
+function ordenPlazo(termino) {
+  const i = ORDEN_PLAZO.indexOf(termino);
+  return i === -1 ? ORDEN_PLAZO.length + termino : i;
+}
+
 const WRITE_CHUNK = 450; // Firestore permite máximo 500 operaciones por batch.
 
 function ImportarContratos({ onImported }) {
@@ -111,6 +131,7 @@ export default function ContratosPage() {
 
   const [fCiudad, setFCiudad] = useState('__ALL__');
   const [fZona, setFZona] = useState('__ALL__');
+  const [fSociedad, setFSociedad] = useState('__ALL__');
   const [fEstado, setFEstado] = useState('__ALL__');
   const [fCategoria, setFCategoria] = useState('__ALL__');
   const [fRetroMin, setFRetroMin] = useState('');
@@ -136,6 +157,7 @@ export default function ContratosPage() {
 
   const ciudades = useMemo(() => uniqueSorted(contratos.map((c) => c.ciudad)), [contratos]);
   const zonas = useMemo(() => uniqueSorted(contratos.map((c) => c.zona)), [contratos]);
+  const sociedades = useMemo(() => uniqueSorted(contratos.map((c) => sociedadOf(c.joyeria))), [contratos]);
   const estados = useMemo(() => uniqueSorted(contratos.map((c) => c.contratoEstado)), [contratos]);
   const categorias = useMemo(() => uniqueSorted(contratos.map((c) => c.contratoCategoria)), [contratos]);
 
@@ -146,6 +168,7 @@ export default function ContratosPage() {
     return contratos.filter((c) => {
       if (fCiudad !== '__ALL__' && c.ciudad !== fCiudad) return false;
       if (fZona !== '__ALL__' && c.zona !== fZona) return false;
+      if (fSociedad !== '__ALL__' && sociedadOf(c.joyeria) !== fSociedad) return false;
       if (fEstado !== '__ALL__' && c.contratoEstado !== fEstado) return false;
       if (fCategoria !== '__ALL__' && c.contratoCategoria !== fCategoria) return false;
       if ((c.porcentajeRetroventa || 0) < retroMin || (c.porcentajeRetroventa || 0) > retroMax) return false;
@@ -154,7 +177,7 @@ export default function ContratosPage() {
       if (busq && !`${c.cliente} ${c.documentoCliente} ${c.contratoSecuencia}`.toLowerCase().includes(busq)) return false;
       return true;
     });
-  }, [contratos, fCiudad, fZona, fEstado, fCategoria, fRetroMin, fRetroMax, fDesde, fHasta, fBusqueda]);
+  }, [contratos, fCiudad, fZona, fSociedad, fEstado, fCategoria, fRetroMin, fRetroMax, fDesde, fHasta, fBusqueda]);
 
   const kpis = useMemo(() => {
     const total = filtrados.length;
@@ -165,12 +188,28 @@ export default function ContratosPage() {
     return { total, valorTotal, retroProm, vencidos, porVencer };
   }, [filtrados]);
 
+  const vencimientosPorPlazo = useMemo(() => {
+    const grupos = {};
+    for (const c of filtrados) {
+      const termino = c.contratoTermino;
+      const key = tipoPlazo(termino);
+      if (!grupos[key]) grupos[key] = { label: key, termino, total: 0, vencidos: 0, porVencer: 0, alDia: 0 };
+      const g = grupos[key];
+      g.total++;
+      const d = daysUntil(c.fechaTerminacion);
+      if (d !== null && d < 0) g.vencidos++;
+      else if (d !== null && d <= 30) g.porVencer++;
+      else g.alDia++;
+    }
+    return Object.values(grupos).sort((a, b) => ordenPlazo(a.termino) - ordenPlazo(b.termino));
+  }, [filtrados]);
+
   const pageCount = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount);
   const pageItems = filtrados.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
 
   function limpiarFiltros() {
-    setFCiudad('__ALL__'); setFZona('__ALL__'); setFEstado('__ALL__'); setFCategoria('__ALL__');
+    setFCiudad('__ALL__'); setFZona('__ALL__'); setFSociedad('__ALL__'); setFEstado('__ALL__'); setFCategoria('__ALL__');
     setFRetroMin(''); setFRetroMax(''); setFDesde(''); setFHasta(''); setFBusqueda('');
     setPage(1);
   }
@@ -179,7 +218,7 @@ export default function ContratosPage() {
     const rows = filtrados.map((c) => ({
       'Cod Joyería': c.codJoyeria, Departamento: c.departamento, Ciudad: c.ciudad, Zona: c.zona,
       'Fecha Inicio': c.fechaInicio, '% Retroventa': c.porcentajeRetroventa, Categoría: c.contratoCategoria,
-      Secuencia: c.contratoSecuencia, Joyería: c.joyeria, 'Fecha Terminación': c.fechaTerminacion,
+      Secuencia: c.contratoSecuencia, Joyería: c.joyeria, Sociedad: sociedadOf(c.joyeria), 'Fecha Terminación': c.fechaTerminacion,
       'Gramos Estimados': c.contratoGramosEstimados, 'Gramos Totales': c.contratoGramosTotales,
       Valor: c.contratoValor, 'Valor Mes': c.contratoValorMes, 'Término (meses)': c.contratoTermino,
       'Meses Adeudados': c.mesesAdeudados, 'Documento Cliente': c.documentoCliente, Cliente: c.cliente,
@@ -223,6 +262,31 @@ export default function ContratosPage() {
           </div>
 
           <div className="panel">
+            <div className="panel-head"><h3>Vencidos y por vencer por tipo de plazo</h3></div>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Tipo de plazo</th>
+                    <th>Total</th><th>Al día</th><th>Por vencer (30d)</th><th>Vencidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vencimientosPorPlazo.map((g) => (
+                    <tr key={g.label}>
+                      <td className="name">{g.label}</td>
+                      <td>{g.total}</td>
+                      <td>{g.alDia}</td>
+                      <td style={{ color: g.porVencer > 0 ? 'var(--gold-light)' : undefined, fontWeight: g.porVencer > 0 ? 700 : 400 }}>{g.porVencer}</td>
+                      <td style={{ color: g.vencidos > 0 ? 'var(--red)' : undefined, fontWeight: g.vencidos > 0 ? 700 : 400 }}>{g.vencidos}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
             <div className="panel-head">
               <h3>Filtros</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -243,6 +307,13 @@ export default function ContratosPage() {
                 <select value={fZona} onChange={(e) => { setFZona(e.target.value); setPage(1); }}>
                   <option value="__ALL__">Todas</option>
                   {zonas.map((z) => <option key={z} value={z}>{z}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Sociedad</div>
+                <select value={fSociedad} onChange={(e) => { setFSociedad(e.target.value); setPage(1); }}>
+                  <option value="__ALL__">Todas</option>
+                  {sociedades.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
@@ -292,7 +363,7 @@ export default function ContratosPage() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Cliente</th>
-                    <th>Ciudad</th><th>Zona</th><th>Categoría</th><th>% Retroventa</th>
+                    <th>Ciudad</th><th>Zona</th><th>Sociedad</th><th>Categoría</th><th>% Retroventa</th>
                     <th>Fecha inicio</th><th>Fecha terminación</th><th>Valor</th><th>Meses adeud.</th><th>Estado</th>
                   </tr>
                 </thead>
@@ -304,7 +375,7 @@ export default function ContratosPage() {
                     return (
                       <tr key={c.id}>
                         <td className="name">{c.cliente || '—'}</td>
-                        <td>{c.ciudad}</td><td>{c.zona}</td><td>{c.contratoCategoria}</td>
+                        <td>{c.ciudad}</td><td>{c.zona}</td><td>{sociedadOf(c.joyeria)}</td><td>{c.contratoCategoria}</td>
                         <td>{fmtPct(c.porcentajeRetroventa).replace('+', '')}</td>
                         <td>{fmtFecha(c.fechaInicio)}</td>
                         <td style={{ color: vencido ? 'var(--red)' : porVencer ? 'var(--gold-light)' : undefined, fontWeight: vencido || porVencer ? 700 : 400 }}>
