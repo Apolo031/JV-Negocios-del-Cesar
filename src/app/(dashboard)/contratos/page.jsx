@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtMoney, fmtPct } from '@/lib/dataHelpers';
+import { parseContratosBuffer, slugifyId } from '@/lib/contratosParser';
 
 const PAGE_SIZE = 50;
 
@@ -29,10 +30,13 @@ function uniqueSorted(list) {
   return [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
+const WRITE_CHUNK = 450; // Firestore permite máximo 500 operaciones por batch.
+
 function ImportarContratos({ onImported }) {
-  const { getIdToken, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
 
@@ -43,24 +47,39 @@ function ImportarContratos({ onImported }) {
     setImporting(true);
     setError('');
     setResult(null);
+    setProgress(null);
     try {
-      const token = await getIdToken();
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/import-contratos', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al importar');
-      setResult(data);
+      // El archivo se procesa aquí mismo en el navegador y se escribe
+      // directo a Firestore (igual que "Editar datos") — así no pasa por
+      // ninguna API route y no choca con el límite de tamaño de subida de
+      // Vercel para funciones serverless (~4.5MB), que un Excel grande de
+      // contratos supera fácilmente.
+      const buffer = await file.arrayBuffer();
+      const contratos = parseContratosBuffer(buffer);
+      if (contratos.length === 0) {
+        throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la columna "Contrato Secuencia").');
+      }
+
+      let done = 0;
+      for (let i = 0; i < contratos.length; i += WRITE_CHUNK) {
+        const slice = contratos.slice(i, i + WRITE_CHUNK);
+        const batch = writeBatch(db);
+        for (const contrato of slice) {
+          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato);
+        }
+        await batch.commit();
+        done += slice.length;
+        setProgress({ done, total: contratos.length });
+      }
+
+      setResult({ count: contratos.length });
       setFile(null);
       onImported?.();
     } catch (err) {
       setError(err.message);
     } finally {
       setImporting(false);
+      setProgress(null);
     }
   }
 
@@ -75,7 +94,7 @@ function ImportarContratos({ onImported }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setFile(e.target.files[0] || null)} style={{ fontSize: 12, color: 'var(--text-dim)' }} />
         <button className="btn" onClick={handleImport} disabled={importing || !file}>
-          {importing ? 'Importando…' : 'Importar archivo'}
+          {importing ? (progress ? `Importando… (${progress.done}/${progress.total})` : 'Leyendo archivo…') : 'Importar archivo'}
         </button>
       </div>
       {error && <div className="login-error">{error}</div>}

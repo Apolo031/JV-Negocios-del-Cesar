@@ -1,7 +1,9 @@
 // Parser del archivo de "Contratos" (préstamos sobre oro) — un registro por
 // contrato, con fechas de inicio/terminación, % de retroventa y estado. Se
-// importa desde un Excel o CSV con las columnas de siempre; solo se usa
-// desde código de SERVIDOR (la API route), nunca desde el cliente.
+// importa desde un Excel o CSV con las columnas de siempre. Se ejecuta en el
+// NAVEGADOR (la subida va directo a Firestore desde el cliente, no por una
+// API route) para no toparse con el límite de tamaño de request de Vercel;
+// por eso trabaja con ArrayBuffer/Uint8Array en vez de Buffer de Node.
 
 import * as XLSX from 'xlsx';
 
@@ -74,23 +76,25 @@ export function slugifyId(s) {
 }
 
 /**
- * true si el buffer es un .xlsx (ZIP, firma "PK") o .xls viejo (OLE2, firma
+ * true si los bytes son un .xlsx (ZIP, firma "PK") o .xls viejo (OLE2, firma
  * D0 CF 11 E0) — es decir, un binario real, no texto plano. Un CSV hay que
- * decodificarlo como string UTF-8 antes de pasarlo a XLSX.read; si se le pasa
- * el Buffer crudo, SheetJS lo interpreta como latin1 y corrompe los acentos.
+ * decodificarlo como string UTF-8 antes de pasarlo a XLSX.read; si se le
+ * pasan los bytes crudos, SheetJS los interpreta como latin1 y corrompe los
+ * acentos.
  */
-function isBinaryWorkbook(buffer) {
-  if (buffer.length < 4) return false;
-  const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b; // "PK"
-  const isOle2 = buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+function isBinaryWorkbook(bytes) {
+  if (bytes.length < 4) return false;
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b; // "PK"
+  const isOle2 = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
   return isZip || isOle2;
 }
 
-/** Parsea un buffer (.xlsx, .xls o .csv) a un arreglo de contratos planos. */
-export function parseContratosBuffer(buffer) {
-  const workbook = isBinaryWorkbook(buffer)
-    ? XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: true })
-    : XLSX.read(buffer.toString('utf8'), { type: 'string', cellDates: true, raw: true });
+/** Parsea un ArrayBuffer/Uint8Array (.xlsx, .xls o .csv) a contratos planos. */
+export function parseContratosBuffer(input) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const workbook = isBinaryWorkbook(bytes)
+    ? XLSX.read(bytes, { type: 'array', cellDates: true, raw: true })
+    : XLSX.read(new TextDecoder('utf-8').decode(bytes), { type: 'string', cellDates: true, raw: true });
   const sheetName = workbook.SheetNames[0];
   const ws = workbook.Sheets[sheetName];
   if (!ws) return [];
