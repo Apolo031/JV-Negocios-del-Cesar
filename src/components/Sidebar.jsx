@@ -12,6 +12,7 @@ const ITEMS = [
   { href: '/semanal', label: 'Seguimiento semanal' },
   { href: '/publicidad', label: 'Publicidad y pendientes' },
   { href: '/contratos', label: 'Contratos' },
+  { href: '/facturas', label: 'Facturas (R+R)' },
   { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },

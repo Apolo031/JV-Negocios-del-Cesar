@@ -62,6 +62,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Facturas (R+R: retiros y renovaciones), enlazadas a un contrato por
+    // Secuencia Contrato.
+    match /facturas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Por defecto: todo lo demás queda cerrado. Cualquier colección nueva que
     // agregues debe declararse explícitamente arriba con sus propias reglas.
     match /{document=**} {
