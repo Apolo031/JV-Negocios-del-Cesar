@@ -7,7 +7,7 @@ import { storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
-import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
+import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtMoneyShort, MONTH_NAMES, MONTH_NAMES_FULL } from '@/lib/dataHelpers';
 
 // Límite real de Firebase Storage para estos adjuntos (ver storage.rules): 8MB
 // por archivo. Ya no aplica el tope de 700KB de cuando se guardaban como
@@ -57,10 +57,16 @@ function openAttachment(p) {
 const MEDIOS = ['Facebook', 'Instagram', 'TikTok', 'Google Ads', 'Volantes / impresos', 'Radio', 'Otro'];
 
 function monthKey(fecha) { return fecha ? fecha.slice(0, 7) : '—'; }
+function yearKey(fecha) { return fecha ? fecha.slice(0, 4) : '—'; }
 function monthKeyLabel(key) {
   if (key === '—') return 'Sin fecha';
   const [y, m] = key.split('-');
   return `${MONTH_NAMES_FULL[parseInt(m, 10) - 1]} ${y}`;
+}
+function monthKeyShort(key) {
+  if (key === '—') return 'Sin fecha';
+  const [y, m] = key.split('-');
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]}'${y.slice(2)}`;
 }
 
 export default function PublicidadPage() {
@@ -72,6 +78,7 @@ export default function PublicidadPage() {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [pendForm, setPendForm] = useState({ texto: '', branch: '', fecha: '' });
+  const [histView, setHistView] = useState('total'); // 'total' | 'anio' | 'mes'
 
   const curMonthKey = new Date().toISOString().slice(0, 7);
   const totalMes = publicidad.filter((p) => monthKey(p.fecha) === curMonthKey).reduce((s, p) => s + (p.costo || 0), 0);
@@ -88,6 +95,23 @@ export default function PublicidadPage() {
   }, [publicidad]);
 
   const keys = useMemo(() => [...new Set(publicidad.map((p) => monthKey(p.fecha)))].sort(), [publicidad]);
+  const yearKeys = useMemo(() => [...new Set(publicidad.map((p) => yearKey(p.fecha)))].sort(), [publicidad]);
+
+  // Misma tabla de "Gasto histórico por sucursal", pero desglosada por año o
+  // por mes en vez de un único acumulado: una columna por período, más el
+  // total de la sucursal y el total de cada período al pie.
+  const histMatrix = useMemo(() => {
+    if (histView === 'total') return null;
+    const periodKeys = histView === 'anio' ? yearKeys : keys;
+    const periodKeyFn = histView === 'anio' ? yearKey : monthKey;
+    const rows = BRANCHES.map((b) => {
+      const porPeriodo = periodKeys.map((k) => publicidad.filter((p) => p.branch === b && periodKeyFn(p.fecha) === k).reduce((s, p) => s + (p.costo || 0), 0));
+      return { branch: b, porPeriodo, total: porPeriodo.reduce((s, v) => s + v, 0) };
+    });
+    const totales = periodKeys.map((_, i) => rows.reduce((s, r) => s + r.porPeriodo[i], 0));
+    return { periodKeys, rows, totales, labelFn: histView === 'anio' ? (k) => (k === '—' ? 'Sin fecha' : k) : monthKeyShort };
+  }, [publicidad, histView, yearKeys, keys]);
+
   const datasets = BRANCHES.map((b) => ({
     label: b, backgroundColor: BRANCH_COLOR[b],
     data: keys.map((k) => publicidad.filter((p) => p.branch === b && monthKey(p.fecha) === k).reduce((s, p) => s + (p.costo || 0), 0)),
@@ -181,10 +205,17 @@ export default function PublicidadPage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>Gasto histórico acumulado por sucursal</h3></div>
+        <div className="panel-head">
+          <h3>Gasto histórico acumulado por sucursal</h3>
+          <div className="btn-group">
+            <button className={`btn-toggle${histView === 'total' ? ' active' : ''}`} type="button" onClick={() => setHistView('total')}>Total</button>
+            <button className={`btn-toggle${histView === 'anio' ? ' active' : ''}`} type="button" onClick={() => setHistView('anio')}>Año a año</button>
+            <button className={`btn-toggle${histView === 'mes' ? ' active' : ''}`} type="button" onClick={() => setHistView('mes')}>Mes a mes</button>
+          </div>
+        </div>
         {totalHistorico === 0 ? (
           <div className="empty-note">Aún no hay gastos registrados.</div>
-        ) : (
+        ) : histView === 'total' ? (
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead><tr><th style={{ textAlign: 'left' }}>Sucursal</th><th>Acumulado histórico</th><th>% del total</th></tr></thead>
@@ -200,6 +231,32 @@ export default function PublicidadPage() {
                   <td className="name" style={{ fontWeight: 700 }}>Total</td>
                   <td style={{ fontWeight: 700 }}>{fmtMoney(totalHistorico)}</td>
                   <td style={{ fontWeight: 700 }}>100%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Sucursal</th>
+                  {histMatrix.periodKeys.map((k) => <th key={k}>{histMatrix.labelFn(k)}</th>)}
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {histMatrix.rows.map((r) => (
+                  <tr key={r.branch}>
+                    <td className="name"><span className="tag-dot" style={{ background: BRANCH_COLOR[r.branch] }} />{r.branch}</td>
+                    {r.porPeriodo.map((v, i) => <td key={histMatrix.periodKeys[i]}>{v ? fmtMoney(v) : '—'}</td>)}
+                    <td style={{ fontWeight: 700 }}>{fmtMoney(r.total)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="name" style={{ fontWeight: 700 }}>Total</td>
+                  {histMatrix.totales.map((v, i) => <td key={histMatrix.periodKeys[i]} style={{ fontWeight: 700 }}>{fmtMoney(v)}</td>)}
+                  <td style={{ fontWeight: 700 }}>{fmtMoney(totalHistorico)}</td>
                 </tr>
               </tbody>
             </table>
