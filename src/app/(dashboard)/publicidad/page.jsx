@@ -79,6 +79,14 @@ export default function PublicidadPage() {
   const countMes = publicidad.filter((p) => monthKey(p.fecha) === curMonthKey).length;
   const pendientesAbiertos = pendientes.filter((p) => !p.done).length;
 
+  const histPorSucursal = useMemo(() => {
+    const porBranch = BRANCHES.map((b) => ({
+      branch: b,
+      total: publicidad.filter((p) => p.branch === b).reduce((s, p) => s + (p.costo || 0), 0),
+    }));
+    return porBranch.sort((a, b) => b.total - a.total);
+  }, [publicidad]);
+
   const keys = useMemo(() => [...new Set(publicidad.map((p) => monthKey(p.fecha)))].sort(), [publicidad]);
   const datasets = BRANCHES.map((b) => ({
     label: b, backgroundColor: BRANCH_COLOR[b],
@@ -170,6 +178,33 @@ export default function PublicidadPage() {
         <div className="kpi"><div className="label">Gastado histórico</div><div className="value">{fmtMoney(totalHistorico)}</div></div>
         <div className="kpi"><div className="label">Publicaciones este mes</div><div className="value">{countMes}</div></div>
         <div className="kpi"><div className="label">Pendientes abiertos</div><div className="value">{pendientesAbiertos}</div></div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head"><h3>Gasto histórico acumulado por sucursal</h3></div>
+        {totalHistorico === 0 ? (
+          <div className="empty-note">Aún no hay gastos registrados.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead><tr><th style={{ textAlign: 'left' }}>Sucursal</th><th>Acumulado histórico</th><th>% del total</th></tr></thead>
+              <tbody>
+                {histPorSucursal.map((r) => (
+                  <tr key={r.branch}>
+                    <td className="name"><span className="tag-dot" style={{ background: BRANCH_COLOR[r.branch] }} />{r.branch}</td>
+                    <td>{fmtMoney(r.total)}</td>
+                    <td>{totalHistorico ? ((r.total / totalHistorico) * 100).toFixed(1) : '0.0'}%</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="name" style={{ fontWeight: 700 }}>Total</td>
+                  <td style={{ fontWeight: 700 }}>{fmtMoney(totalHistorico)}</td>
+                  <td style={{ fontWeight: 700 }}>100%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {isAdmin && (
