@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebaseClient';
@@ -28,6 +28,8 @@ export default function IdentificarJoyaPage() {
   const [buscando, setBuscando] = useState(false);
   const [identificando, setIdentificando] = useState(false);
   const [error, setError] = useState('');
+  const camaraInputRef = useRef(null);
+  const galeriaInputRef = useRef(null);
 
   async function buscarSku() {
     const sku = skuBusqueda.trim();
@@ -90,7 +92,7 @@ export default function IdentificarJoyaPage() {
   return (
     <div>
       <div className="topbar">
-        <div><h1>Identificar joya</h1><p>Sube la foto de una pieza y la IA te dice tipo de producto, tejido/estilo, patrón y confianza</p></div>
+        <div><h1>Identificar joya</h1><p>Toma la foto de una pieza (o súbela desde galería) y la IA te dice tipo de producto, tejido/estilo, patrón y confianza</p></div>
       </div>
 
       {!isAdmin && (
@@ -156,9 +158,20 @@ export default function IdentificarJoyaPage() {
               )}
               {isAdmin && (
                 <div style={{ marginTop: 12 }}>
-                  <input type="file" accept="image/*" disabled={identificando}
-                    onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
-                  {identificando && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>Subiendo e identificando…</div>}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn" type="button" disabled={identificando} onClick={() => camaraInputRef.current?.click()}>
+                      📷 Tomar foto
+                    </button>
+                    <button className="btn-outline" type="button" disabled={identificando} onClick={() => galeriaInputRef.current?.click()}>
+                      Subir desde galería
+                    </button>
+                  </div>
+                  {/* capture="environment" abre directo la cámara trasera en celulares; en escritorio se ignora y actúa como un input de archivo normal. */}
+                  <input ref={camaraInputRef} type="file" accept="image/*" capture="environment" disabled={identificando}
+                    onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                  <input ref={galeriaInputRef} type="file" accept="image/*" disabled={identificando}
+                    onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                  {identificando && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>Subiendo e identificando…</div>}
                 </div>
               )}
             </div>
