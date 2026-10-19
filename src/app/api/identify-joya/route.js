@@ -15,6 +15,20 @@ function extractJson(text) {
   return JSON.parse(match ? match[0] : cleaned);
 }
 
+/**
+ * En esta joyería, el tejido que suele llamarse "Gucci" se nombra siempre
+ * como "Calabrote" — aunque se le pide al modelo en el prompt, a veces igual
+ * responde "Gucci", así que se normaliza aquí como respaldo.
+ */
+function normalizarEstilo(identificacion) {
+  for (const campo of ['tejido_o_estilo', 'patron']) {
+    if (typeof identificacion[campo] === 'string') {
+      identificacion[campo] = identificacion[campo].replace(/\bgucci\b/gi, 'Calabrote');
+    }
+  }
+  return identificacion;
+}
+
 export async function POST(request) {
   try {
     await requireAdmin(request);
@@ -57,7 +71,9 @@ export async function POST(request) {
   "tejido_o_estilo": "Nombre exacto del tejido (ej. Fígaro 3x1, Cubano, Chino)",
   "patron": "Breve descripción del patrón visual detectado",
   "confianza": "Alta, Media o Baja"
-}`,
+}
+
+Importante: en esta joyería, el tejido que comúnmente se conoce como "Gucci" se llama siempre "Calabrote" — si identificas ese tejido, responde "Calabrote", nunca "Gucci".`,
               },
             ],
           },
@@ -79,6 +95,7 @@ export async function POST(request) {
     } catch {
       return NextResponse.json({ error: 'La IA no devolvió un JSON válido: ' + text.slice(0, 300) }, { status: 502 });
     }
+    identificacion = normalizarEstilo(identificacion);
 
     return NextResponse.json({ identificacion, generatedAt: Date.now() });
   } catch (err) {
