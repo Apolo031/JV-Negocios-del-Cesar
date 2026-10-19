@@ -86,6 +86,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Foto e identificación por IA (tipo de producto, tejido/estilo, patrón)
+    // de una pieza de inventario, por SKU. Va aparte de /inventario porque
+    // ese documento se reemplaza entero cada vez que se reimporta el Excel —
+    // guardar la foto ahí se perdería en la siguiente carga.
+    match /inventario_fotos/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Por defecto: todo lo demás queda cerrado. Cualquier colección nueva que
     // agregues debe declararse explícitamente arriba con sus propias reglas.
     match /{document=**} {
