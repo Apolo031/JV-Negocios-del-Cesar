@@ -1,23 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, where, documentId } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebaseClient';
-import { useAuth } from '@/contexts/AuthContext';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, startAfter, where, documentId } from 'firebase/firestore';
+import { db } from '@/lib/firebaseClient';
 import { fmtMoney, fmtGr, fmtNum } from '@/lib/dataHelpers';
 import { slugifyId } from '@/lib/importHelpers';
-
-const MAX_FOTO_BYTES = 8 * 1024 * 1024;
-
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 const PAGE_SIZE = 50;
 
@@ -55,7 +42,6 @@ function fmtFecha(s) {
 }
 
 export default function InventarioPage() {
-  const { isAdmin, getIdToken } = useAuth();
   const [resumen, setResumen] = useState(null);
   const [loadingResumen, setLoadingResumen] = useState(true);
   const [error, setError] = useState('');
@@ -64,9 +50,6 @@ export default function InventarioPage() {
   const [filterValue, setFilterValue] = useState('__ALL__');
   const [skuBusqueda, setSkuBusqueda] = useState('');
   const [skuResultado, setSkuResultado] = useState(undefined); // undefined = no buscado, null = no encontrado
-  const [skuFoto, setSkuFoto] = useState(null); // {photo, identificacion} ya guardado para esta SKU
-  const [identificando, setIdentificando] = useState(false);
-  const [identificarError, setIdentificarError] = useState('');
 
   const [items, setItems] = useState([]);
   const [loadingPage, setLoadingPage] = useState(false);
@@ -125,53 +108,11 @@ export default function InventarioPage() {
     const sku = skuBusqueda.trim();
     if (!sku) { setSkuResultado(undefined); return; }
     setError('');
-    setIdentificarError('');
     try {
-      const id = slugifyId(sku);
-      const [snap, fotoSnap] = await Promise.all([
-        getDoc(doc(db, 'inventario', id)),
-        getDoc(doc(db, 'inventario_fotos', id)),
-      ]);
+      const snap = await getDoc(doc(db, 'inventario', slugifyId(sku)));
       setSkuResultado(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-      setSkuFoto(fotoSnap.exists() ? fotoSnap.data() : null);
     } catch (err) {
       setError('No se pudo buscar el SKU: ' + err.message);
-    }
-  }
-
-  async function handleIdentificarFoto(file) {
-    if (!file || !skuResultado) return;
-    if (file.size > MAX_FOTO_BYTES) {
-      setIdentificarError('La foto pesa demasiado (máx. 8MB).');
-      return;
-    }
-    setIdentificando(true);
-    setIdentificarError('');
-    try {
-      const id = skuResultado.id;
-      const path = `inventario/${id}/${Date.now()}-${file.name}`;
-      const fileRef = ref(storage, path);
-      await uploadBytes(fileRef, file, { contentType: file.type });
-      const src = await getDownloadURL(fileRef);
-      const photo = { src, name: file.name, path, type: file.type };
-
-      const imageBase64 = await readFileAsBase64(file);
-      const token = await getIdToken();
-      const res = await fetch('/api/identify-joya', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ imageBase64, mimeType: file.type }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'No se pudo identificar la foto');
-
-      const nuevo = { photo, identificacion: data.identificacion, identificadoEn: Date.now() };
-      await setDoc(doc(db, 'inventario_fotos', id), nuevo);
-      setSkuFoto(nuevo);
-    } catch (err) {
-      setIdentificarError(err.message);
-    } finally {
-      setIdentificando(false);
     }
   }
 
@@ -265,37 +206,6 @@ export default function InventarioPage() {
                     </tr>
                   </tbody>
                 </table>
-              </div>
-            )}
-            {skuResultado && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>Identificación por IA</div>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                  {skuFoto?.photo && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={skuFoto.photo.src} alt={skuFoto.photo.name} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    {skuFoto?.identificacion ? (
-                      <div style={{ fontSize: 12.5, lineHeight: 1.8 }}>
-                        <div><b>Tipo de producto:</b> {skuFoto.identificacion.tipo_producto}</div>
-                        <div><b>Tejido / estilo:</b> {skuFoto.identificacion.tejido_o_estilo}</div>
-                        <div><b>Patrón:</b> {skuFoto.identificacion.patron}</div>
-                        <div><b>Confianza:</b> {skuFoto.identificacion.confianza}</div>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>Esta pieza todavía no tiene foto ni identificación.</div>
-                    )}
-                    {isAdmin && (
-                      <div style={{ marginTop: 10 }}>
-                        <input type="file" accept="image/*" disabled={identificando}
-                          onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ fontSize: 11.5, color: 'var(--text-dim)' }} />
-                        {identificando && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>Subiendo e identificando…</div>}
-                        {identificarError && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 6 }}>{identificarError}</div>}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
           </div>
