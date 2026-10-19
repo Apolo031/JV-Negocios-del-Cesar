@@ -56,13 +56,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Contratos en proceso jurídico, registrados a mano por Jefe Zonal
-    // (cantidad, rango de fechas, estado/asignación, valor y notas).
-    match /proceso_juridico/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
     // Contratos (préstamos sobre oro) importados desde el archivo de control.
     match /contratos/{docId} {
       allow read: if isSignedIn();
