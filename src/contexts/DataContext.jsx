@@ -17,6 +17,7 @@ export function DataProvider({ children }) {
   const [weekly, setWeekly] = useState([]);
   const [publicidad, setPublicidad] = useState([]);
   const [pendientes, setPendientes] = useState([]);
+  const [procesoJuridico, setProcesoJuridico] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,8 +49,12 @@ export function DataProvider({ children }) {
       setPendientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubPJ = onSnapshot(collection(db, 'proceso_juridico'), (snap) => {
+      setProcesoJuridico(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     setLoading(false);
-    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); };
+    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); unsubPJ(); };
   }, [user]);
 
   /** Admin: sobreescribe un metric completo (los 12 meses) de una sucursal/año. */
@@ -82,11 +87,20 @@ export function DataProvider({ children }) {
   }, []);
   const deletePendiente = useCallback(async (id) => deleteDoc(doc(db, 'pendientes', id)), []);
 
+  const addProcesoJuridico = useCallback(async (entry) => {
+    return addDoc(collection(db, 'proceso_juridico'), { ...entry, createdAt: Date.now() });
+  }, []);
+  const updateProcesoJuridico = useCallback(async (id, entry) => {
+    return updateDoc(doc(db, 'proceso_juridico', id), entry);
+  }, []);
+  const deleteProcesoJuridico = useCallback(async (id) => deleteDoc(doc(db, 'proceso_juridico', id)), []);
+
   return (
     <DataContext.Provider value={{
-      monthly, weekly, publicidad, pendientes, loading,
+      monthly, weekly, publicidad, pendientes, procesoJuridico, loading,
       saveMonthlyMetric, addPublicidad, deletePublicidad,
       addPendiente, togglePendiente, deletePendiente,
+      addProcesoJuridico, updateProcesoJuridico, deleteProcesoJuridico,
     }}>
       {children}
     </DataContext.Provider>
