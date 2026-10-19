@@ -137,47 +137,47 @@ export default function IdentificarJoyaPage() {
         )}
       </div>
 
-      {pieza !== undefined && (
-        <div className="panel">
-          <div className="panel-head"><h3>Identificación por IA</h3></div>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {foto?.photo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={foto.photo.src} alt={foto.photo.name} style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+      <div className="panel">
+        <div className="panel-head"><h3>Identificación por IA</h3></div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {foto?.photo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={foto.photo.src} alt={foto.photo.name} style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+          )}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            {foto?.identificacion ? (
+              <div style={{ fontSize: 13, lineHeight: 1.9 }}>
+                <div><b>Tipo de producto:</b> {foto.identificacion.tipo_producto}</div>
+                <div><b>Tejido / estilo:</b> {foto.identificacion.tejido_o_estilo}</div>
+                <div><b>Patrón:</b> {foto.identificacion.patron}</div>
+                <div><b>Confianza:</b> {foto.identificacion.confianza}</div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                {skuBusqueda.trim() ? 'Esta SKU todavía no tiene foto ni identificación.' : 'Escribe arriba el SKU de la pieza antes de tomar o subir la foto.'}
+              </div>
             )}
-            <div style={{ flex: 1, minWidth: 220 }}>
-              {foto?.identificacion ? (
-                <div style={{ fontSize: 13, lineHeight: 1.9 }}>
-                  <div><b>Tipo de producto:</b> {foto.identificacion.tipo_producto}</div>
-                  <div><b>Tejido / estilo:</b> {foto.identificacion.tejido_o_estilo}</div>
-                  <div><b>Patrón:</b> {foto.identificacion.patron}</div>
-                  <div><b>Confianza:</b> {foto.identificacion.confianza}</div>
+            {isAdmin && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button className="btn" type="button" disabled={identificando} onClick={() => camaraInputRef.current?.click()}>
+                    📷 Tomar foto
+                  </button>
+                  <button className="btn-outline" type="button" disabled={identificando} onClick={() => galeriaInputRef.current?.click()}>
+                    Subir desde galería
+                  </button>
                 </div>
-              ) : (
-                <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>Esta SKU todavía no tiene foto ni identificación.</div>
-              )}
-              {isAdmin && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button className="btn" type="button" disabled={identificando} onClick={() => camaraInputRef.current?.click()}>
-                      📷 Tomar foto
-                    </button>
-                    <button className="btn-outline" type="button" disabled={identificando} onClick={() => galeriaInputRef.current?.click()}>
-                      Subir desde galería
-                    </button>
-                  </div>
-                  {/* capture="environment" abre directo la cámara trasera en celulares; en escritorio se ignora y actúa como un input de archivo normal. */}
-                  <input ref={camaraInputRef} type="file" accept="image/*" capture="environment" disabled={identificando}
-                    onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
-                  <input ref={galeriaInputRef} type="file" accept="image/*" disabled={identificando}
-                    onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
-                  {identificando && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>Subiendo e identificando…</div>}
-                </div>
-              )}
-            </div>
+                {/* capture="environment" abre directo la cámara trasera en celulares; en escritorio se ignora y actúa como un input de archivo normal. */}
+                <input ref={camaraInputRef} type="file" accept="image/*" capture="environment" disabled={identificando}
+                  onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                <input ref={galeriaInputRef} type="file" accept="image/*" disabled={identificando}
+                  onChange={(e) => handleIdentificarFoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                {identificando && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>Subiendo e identificando…</div>}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
