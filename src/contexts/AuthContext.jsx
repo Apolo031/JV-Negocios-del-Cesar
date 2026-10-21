@@ -12,7 +12,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // 'admin' | 'operaciones' | null
+  const [role, setRole] = useState(null); // 'admin' | 'colaborador' | 'operaciones' | null
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

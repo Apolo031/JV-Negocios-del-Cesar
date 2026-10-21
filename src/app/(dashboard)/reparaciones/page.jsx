@@ -103,7 +103,8 @@ function ImportarReparaciones({ onImported }) {
 }
 
 export default function ReparacionesPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, role } = useAuth();
+  const canEditar = isAdmin || role === 'colaborador'; // crear/editar — eliminar sigue siendo solo del admin
   const { reparaciones, addReparacion, updateReparacion, deleteReparacion } = useData();
 
   const [form, setForm] = useState(FORM_VACIO);
@@ -214,9 +215,14 @@ export default function ReparacionesPage() {
         <div><h1>Reparaciones</h1><p>Control de reparaciones de joyas — cliente, artículo, servicio, responsable y estado</p></div>
       </div>
 
-      {!isAdmin && (
+      {!canEditar && (
         <div className="readonly-banner">
-          Tu rol es de <b>solo lectura</b>: puedes ver todos los registros, pero agregar, editar o eliminar solo lo puede hacer un administrador.
+          Tu rol es de <b>solo lectura</b>: puedes ver todos los registros, pero agregar, editar o eliminar solo lo puede hacer un administrador o colaborador.
+        </div>
+      )}
+      {canEditar && !isAdmin && (
+        <div className="readonly-banner">
+          Tu rol es de <b>colaborador</b>: puedes agregar y editar registros, pero eliminarlos solo lo puede hacer un administrador.
         </div>
       )}
 
@@ -253,7 +259,7 @@ export default function ReparacionesPage() {
 
       <ImportarReparaciones />
 
-      {isAdmin && (
+      {canEditar && (
         <div className="panel">
           <div className="panel-head"><h3>{editId ? 'Editar registro' : 'Nuevo registro'}</h3></div>
           <form onSubmit={handleSubmit} className="form-grid">
@@ -374,7 +380,7 @@ export default function ReparacionesPage() {
           <span className="hint">{filtradas.length} {filtradas.length === 1 ? 'registro' : 'registros'}</span>
         </div>
         {filtradas.length === 0 ? (
-          <div className="empty-note">Aún no hay reparaciones registradas{isAdmin ? '. Agrega la primera arriba o importa el Excel.' : '.'}</div>
+          <div className="empty-note">Aún no hay reparaciones registradas{canEditar ? '. Agrega la primera arriba o importa el Excel.' : '.'}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table>
@@ -383,7 +389,7 @@ export default function ReparacionesPage() {
                   <th style={{ textAlign: 'left' }}>Cliente</th><th>Sucursal</th><th>Fecha</th><th>Teléfono</th>
                   <th>Artículo</th><th>Servicio</th><th>Responsable</th><th>Estado</th><th>Valor</th>
                   <th style={{ textAlign: 'left' }}>Observaciones</th>
-                  {isAdmin && <th></th>}
+                  {canEditar && <th></th>}
                 </tr>
               </thead>
               <tbody>
@@ -399,10 +405,10 @@ export default function ReparacionesPage() {
                     <td style={{ fontWeight: r.estado === 'Pendiente' ? 700 : 400, color: r.estado === 'Pendiente' ? 'var(--gold-light)' : undefined }}>{r.estado || '—'}</td>
                     <td>{fmtValor(r.valor)}</td>
                     <td>{r.observaciones || '—'}</td>
-                    {isAdmin && (
+                    {canEditar && (
                       <td style={{ display: 'flex', gap: 6 }}>
                         <button className="btn-outline" onClick={() => editar(r)}>Editar</button>
-                        <button className="btn-outline" onClick={() => deleteReparacion(r.id)}>Eliminar</button>
+                        {isAdmin && <button className="btn-outline" onClick={() => deleteReparacion(r.id)}>Eliminar</button>}
                       </td>
                     )}
                   </tr>

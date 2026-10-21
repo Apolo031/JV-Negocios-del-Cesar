@@ -76,7 +76,7 @@ export default function Sidebar({ open, onNavigate, onClose }) {
 
       <div className="sidebar-foot">
         <div>Sesión: <b>{user?.email}</b></div>
-        <div style={{ marginTop: 4 }}>Rol: <b>{role === 'admin' ? 'Administrador' : 'Operaciones (solo lectura)'}</b></div>
+        <div style={{ marginTop: 4 }}>Rol: <b>{role === 'admin' ? 'Administrador' : role === 'colaborador' ? 'Colaborador' : 'Operaciones (solo lectura)'}</b></div>
         <button className="btn-outline" style={{ marginTop: 10, width: '100%' }} onClick={logout}>
           Cerrar sesión
         </button>

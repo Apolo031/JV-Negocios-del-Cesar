@@ -23,10 +23,15 @@ export async function GET(request) {
   }
 }
 
+// Roles válidos: admin (todo), colaborador (puede crear/editar en los
+// módulos habilitados para ese rol, pero nunca eliminar), operaciones (solo
+// lectura, por defecto si no se reconoce el valor recibido).
+const VALID_ROLES = ['admin', 'colaborador', 'operaciones'];
+
 // POST /api/users — crea un usuario nuevo con rol y una contraseña inicial
 // fija (solo admin). El admin le comparte esa contraseña a la persona por
 // fuera (WhatsApp, en persona, etc.) y ella la cambia luego en "Mi cuenta".
-// body: { email, displayName, role: 'admin' | 'operaciones' }
+// body: { email, displayName, role: 'admin' | 'colaborador' | 'operaciones' }
 export async function POST(request) {
   try {
     await requireAdmin(request);
@@ -36,7 +41,7 @@ export async function POST(request) {
     if (!email) {
       return NextResponse.json({ error: 'El correo es obligatorio.' }, { status: 400 });
     }
-    const finalRole = role === 'admin' ? 'admin' : 'operaciones';
+    const finalRole = VALID_ROLES.includes(role) ? role : 'operaciones';
 
     const userRecord = await adminAuth.createUser({ email, password: DEFAULT_PASSWORD, displayName: displayName || '' });
     await adminAuth.setCustomUserClaims(userRecord.uid, { role: finalRole });

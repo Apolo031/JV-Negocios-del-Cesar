@@ -5,6 +5,8 @@ rules_version = '2';
 //
 // Modelo de permisos:
 //   - admin:       puede leer y escribir todo (incluida la gestión de usuarios).
+//   - colaborador: puede leer todo, y crear/editar (pero nunca borrar) en los
+//                  módulos donde esté habilitado (hoy: reparaciones).
 //   - operaciones: puede leer todo, pero NO puede escribir/editar/borrar nada.
 //
 // El rol vive en un "custom claim" del token de Firebase Auth (request.auth.token.role),
@@ -19,6 +21,12 @@ function isSignedIn() {
 
 function isAdmin() {
   return isSignedIn() && request.auth.token.role == 'admin';
+}
+
+// Puede crear y editar en los módulos habilitados para este rol, pero nunca
+// eliminar — eso siempre queda exclusivo del admin.
+function isColaborador() {
+  return isSignedIn() && request.auth.token.role == 'colaborador';
 }
 
 service cloud.firestore {
@@ -57,9 +65,12 @@ service cloud.firestore {
     }
 
     // Control de reparaciones de joyas (cliente, artículo, servicio, estado, valor).
+    // Un "colaborador" puede registrar y corregir reparaciones, pero borrar
+    // un registro solo lo puede hacer el admin.
     match /reparaciones/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() || isColaborador();
+      allow delete: if isAdmin();
     }
 
     // Contratos (préstamos sobre oro) importados desde el archivo de control.

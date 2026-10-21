@@ -163,6 +163,7 @@ function UsuariosInner() {
             <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Rol</div>
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={{ width: '100%' }}>
               <option value="operaciones">Operaciones (solo lectura)</option>
+              <option value="colaborador">Colaborador (crea/edita, no elimina)</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
@@ -189,6 +190,7 @@ function UsuariosInner() {
                       <td>
                         <select value={u.role} onChange={(e) => handleRoleChange(u.uid, e.target.value)} disabled={u.uid === user.uid}>
                           <option value="operaciones">Operaciones</option>
+                          <option value="colaborador">Colaborador</option>
                           <option value="admin">Administrador</option>
                         </select>
                       </td>

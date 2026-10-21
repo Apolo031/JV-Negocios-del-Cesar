@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 
+const VALID_ROLES = ['admin', 'colaborador', 'operaciones'];
+
 // PATCH /api/users/[uid] — cambia rol y/o estado (activo/deshabilitado). Solo admin.
-// body: { role?: 'admin'|'operaciones', disabled?: boolean }
+// body: { role?: 'admin'|'colaborador'|'operaciones', disabled?: boolean }
 export async function PATCH(request, { params }) {
   try {
     const decoded = await requireAdmin(request);
@@ -19,7 +21,7 @@ export async function PATCH(request, { params }) {
     if (Object.keys(updates).length) await adminAuth.updateUser(uid, updates);
 
     if (body.role) {
-      const finalRole = body.role === 'admin' ? 'admin' : 'operaciones';
+      const finalRole = VALID_ROLES.includes(body.role) ? body.role : 'operaciones';
       await adminAuth.setCustomUserClaims(uid, { role: finalRole });
       await adminDb.collection('users').doc(uid).set({ role: finalRole }, { merge: true });
     }
