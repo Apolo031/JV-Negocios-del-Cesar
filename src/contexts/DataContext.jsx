@@ -17,6 +17,7 @@ export function DataProvider({ children }) {
   const [weekly, setWeekly] = useState([]);
   const [publicidad, setPublicidad] = useState([]);
   const [pendientes, setPendientes] = useState([]);
+  const [reparaciones, setReparaciones] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,8 +49,12 @@ export function DataProvider({ children }) {
       setPendientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubRep = onSnapshot(collection(db, 'reparaciones'), (snap) => {
+      setReparaciones(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     setLoading(false);
-    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); };
+    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); unsubRep(); };
   }, [user]);
 
   /** Admin: sobreescribe un metric completo (los 12 meses) de una sucursal/año. */
@@ -82,11 +87,20 @@ export function DataProvider({ children }) {
   }, []);
   const deletePendiente = useCallback(async (id) => deleteDoc(doc(db, 'pendientes', id)), []);
 
+  const addReparacion = useCallback(async (entry) => {
+    return addDoc(collection(db, 'reparaciones'), { ...entry, createdAt: Date.now() });
+  }, []);
+  const updateReparacion = useCallback(async (id, entry) => {
+    return updateDoc(doc(db, 'reparaciones', id), entry);
+  }, []);
+  const deleteReparacion = useCallback(async (id) => deleteDoc(doc(db, 'reparaciones', id)), []);
+
   return (
     <DataContext.Provider value={{
-      monthly, weekly, publicidad, pendientes, loading,
+      monthly, weekly, publicidad, pendientes, reparaciones, loading,
       saveMonthlyMetric, addPublicidad, deletePublicidad,
       addPendiente, togglePendiente, deletePendiente,
+      addReparacion, updateReparacion, deleteReparacion,
     }}>
       {children}
     </DataContext.Provider>

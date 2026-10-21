@@ -15,6 +15,7 @@ const ITEMS = [
   { href: '/facturas', label: 'Facturas (R+R)' },
   { href: '/inventario', label: 'Inventario' },
   { href: '/identificar-joya', label: 'Identificar joya' },
+  { href: '/reparaciones', label: 'Reparaciones' },
   { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },

@@ -56,6 +56,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Control de reparaciones de joyas (cliente, artículo, servicio, estado, valor).
+    match /reparaciones/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Contratos (préstamos sobre oro) importados desde el archivo de control.
     match /contratos/{docId} {
       allow read: if isSignedIn();
