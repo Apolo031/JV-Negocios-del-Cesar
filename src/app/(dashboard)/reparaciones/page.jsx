@@ -6,7 +6,7 @@ import { collection, doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { BRANCHES, fmtMoney, fmtNum } from '@/lib/dataHelpers';
+import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtNum } from '@/lib/dataHelpers';
 import { parseReparacionesBuffer } from '@/lib/reparacionesParser';
 
 const ARTICULOS = ['Cadena', 'Pulsera', 'Anillo', 'Aretes', 'Dije', 'Reloj', 'Otro'];
@@ -146,6 +146,21 @@ export default function ReparacionesPage() {
     return { total, terminadas, entregadas, pendientes, clientes };
   }, [filtradas]);
 
+  // Resumen por sucursal: siempre sobre TODOS los registros (no el filtro
+  // actual), para tener de un vistazo cómo va cada una de las 6 sucursales.
+  const porSucursal = useMemo(() => {
+    return BRANCHES.map((b) => {
+      const deLaSucursal = reparaciones.filter((r) => r.sucursal === b);
+      return {
+        sucursal: b,
+        total: deLaSucursal.length,
+        pendientes: deLaSucursal.filter((r) => r.estado === 'Pendiente' || r.estado === 'En proceso').length,
+        terminadas: deLaSucursal.filter((r) => r.estado === 'Terminada').length,
+        entregadas: deLaSucursal.filter((r) => r.estado === 'Entregada').length,
+      };
+    });
+  }, [reparaciones]);
+
   function editar(r) {
     setEditId(r.id);
     setForm({
@@ -212,6 +227,28 @@ export default function ReparacionesPage() {
         <div className="kpi"><div className="label">Pendientes / en proceso</div><div className="value">{fmtNum(kpis.pendientes)}</div></div>
         <div className="kpi"><div className="label">Terminadas</div><div className="value">{fmtNum(kpis.terminadas)}</div></div>
         <div className="kpi"><div className="label">Entregadas</div><div className="value">{fmtNum(kpis.entregadas)}</div></div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head"><h3>Resumen por sucursal</h3></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {porSucursal.map((s) => {
+            const max = Math.max(1, ...porSucursal.map((x) => x.total));
+            return (
+              <div key={s.sucursal} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 100, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{s.sucursal}</div>
+                <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 22, position: 'relative' }}>
+                  <div style={{ width: `${(s.total / max) * 100}%`, background: BRANCH_COLOR[s.sucursal], height: '100%', minWidth: s.total ? 3 : 0 }} />
+                </div>
+                <div style={{ width: 230, flexShrink: 0, fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>
+                  <b style={{ color: 'var(--text)' }}>{fmtNum(s.total)}</b> total
+                  {' · '}<span style={{ color: s.pendientes > 0 ? 'var(--gold-light)' : undefined, fontWeight: s.pendientes > 0 ? 700 : 400 }}>{s.pendientes} pend.</span>
+                  {' · '}{s.terminadas} term. · {s.entregadas} entr.
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <ImportarReparaciones />
