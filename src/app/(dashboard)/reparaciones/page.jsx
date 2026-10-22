@@ -6,7 +6,7 @@ import { collection, doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { BRANCHES, BRANCH_COLOR, fmtMoney, fmtNum } from '@/lib/dataHelpers';
+import { BRANCHES, BRANCH_COLOR, MONTH_NAMES_FULL, fmtMoney, fmtNum } from '@/lib/dataHelpers';
 import { parseReparacionesBuffer } from '@/lib/reparacionesParser';
 
 const ARTICULOS = ['Cadena', 'Pulsera', 'Anillo', 'Aretes', 'Dije', 'Reloj', 'Otro'];
@@ -23,6 +23,13 @@ function fmtFecha(s) {
   if (!s) return '—';
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+}
+
+function monthKey(fecha) { return fecha ? fecha.slice(0, 7) : '—'; }
+function monthKeyLabel(key) {
+  if (key === '—') return 'Sin fecha';
+  const [y, m] = key.split('-');
+  return `${MONTH_NAMES_FULL[parseInt(m, 10) - 1]} ${y}`;
 }
 
 /** El "Valor" a veces es un número y a veces texto (ej. "RESEÑA" para servicios de cortesía). */
@@ -113,6 +120,7 @@ export default function ReparacionesPage() {
   const [error, setError] = useState('');
 
   const [fSucursal, setFSucursal] = useState('__ALL__');
+  const [fMes, setFMes] = useState('__ALL__');
   const [fEstado, setFEstado] = useState('__ALL__');
   const [fServicio, setFServicio] = useState('__ALL__');
   const [fResponsable, setFResponsable] = useState('__ALL__');
@@ -123,6 +131,11 @@ export default function ReparacionesPage() {
     [reparaciones]
   );
 
+  const meses = useMemo(
+    () => [...new Set(reparaciones.map((r) => monthKey(r.fecha)))].sort().reverse(),
+    [reparaciones]
+  );
+
   const filtradas = useMemo(() => {
     const busq = fBusqueda.trim().toLowerCase();
     return reparaciones
@@ -130,13 +143,14 @@ export default function ReparacionesPage() {
       .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
       .filter((r) => {
         if (fSucursal !== '__ALL__' && r.sucursal !== fSucursal) return false;
+        if (fMes !== '__ALL__' && monthKey(r.fecha) !== fMes) return false;
         if (fEstado !== '__ALL__' && r.estado !== fEstado) return false;
         if (fServicio !== '__ALL__' && r.servicio !== fServicio) return false;
         if (fResponsable !== '__ALL__' && r.responsable !== fResponsable) return false;
         if (busq && !`${r.nombre} ${r.telefono}`.toLowerCase().includes(busq)) return false;
         return true;
       });
-  }, [reparaciones, fSucursal, fEstado, fServicio, fResponsable, fBusqueda]);
+  }, [reparaciones, fSucursal, fMes, fEstado, fServicio, fResponsable, fBusqueda]);
 
   const kpis = useMemo(() => {
     const total = filtradas.length;
@@ -161,6 +175,22 @@ export default function ReparacionesPage() {
       };
     });
   }, [reparaciones]);
+
+  // Resumen mes a mes: respeta el filtro de sucursal (para ver la evolución
+  // de una sucursal en particular) pero no los demás filtros de la tabla.
+  const porMes = useMemo(() => {
+    const base = fSucursal === '__ALL__' ? reparaciones : reparaciones.filter((r) => r.sucursal === fSucursal);
+    return meses.map((key) => {
+      const delMes = base.filter((r) => monthKey(r.fecha) === key);
+      return {
+        key, label: monthKeyLabel(key),
+        total: delMes.length,
+        pendientes: delMes.filter((r) => r.estado === 'Pendiente' || r.estado === 'En proceso').length,
+        terminadas: delMes.filter((r) => r.estado === 'Terminada').length,
+        entregadas: delMes.filter((r) => r.estado === 'Entregada').length,
+      };
+    });
+  }, [reparaciones, meses, fSucursal]);
 
   function editar(r) {
     setEditId(r.id);
@@ -195,7 +225,7 @@ export default function ReparacionesPage() {
   }
 
   function limpiarFiltros() {
-    setFSucursal('__ALL__'); setFEstado('__ALL__'); setFServicio('__ALL__'); setFResponsable('__ALL__'); setFBusqueda('');
+    setFSucursal('__ALL__'); setFMes('__ALL__'); setFEstado('__ALL__'); setFServicio('__ALL__'); setFResponsable('__ALL__'); setFBusqueda('');
   }
 
   function handleExportExcel() {
@@ -255,6 +285,35 @@ export default function ReparacionesPage() {
             );
           })}
         </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3>Resumen mes a mes</h3>
+          {fSucursal !== '__ALL__' && <span className="hint">{fSucursal}</span>}
+        </div>
+        {porMes.length === 0 ? (
+          <div className="empty-note">Aún no hay reparaciones con fecha para resumir por mes.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {porMes.map((m) => {
+              const max = Math.max(1, ...porMes.map((x) => x.total));
+              return (
+                <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 130, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{m.label}</div>
+                  <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 22, position: 'relative' }}>
+                    <div style={{ width: `${(m.total / max) * 100}%`, background: 'var(--gold)', height: '100%', minWidth: m.total ? 3 : 0 }} />
+                  </div>
+                  <div style={{ width: 230, flexShrink: 0, fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>
+                    <b style={{ color: 'var(--text)' }}>{fmtNum(m.total)}</b> total
+                    {' · '}<span style={{ color: m.pendientes > 0 ? 'var(--gold-light)' : undefined, fontWeight: m.pendientes > 0 ? 700 : 400 }}>{m.pendientes} pend.</span>
+                    {' · '}{m.terminadas} term. · {m.entregadas} entr.
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <ImportarReparaciones />
@@ -344,6 +403,13 @@ export default function ReparacionesPage() {
             <select value={fSucursal} onChange={(e) => setFSucursal(e.target.value)}>
               <option value="__ALL__">Todas</option>
               {BRANCHES.map((b) => <option key={b}>{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Mes</div>
+            <select value={fMes} onChange={(e) => setFMes(e.target.value)}>
+              <option value="__ALL__">Todos</option>
+              {meses.map((m) => <option key={m} value={m}>{monthKeyLabel(m)}</option>)}
             </select>
           </div>
           <div>
