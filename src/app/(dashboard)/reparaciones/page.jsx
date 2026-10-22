@@ -121,6 +121,7 @@ export default function ReparacionesPage() {
 
   const [fSucursal, setFSucursal] = useState('__ALL__');
   const [fMes, setFMes] = useState('__ALL__');
+  const [mesSucursal, setMesSucursal] = useState('__ALL__'); // sucursal propia del panel "Resumen mes a mes"
   const [fEstado, setFEstado] = useState('__ALL__');
   const [fServicio, setFServicio] = useState('__ALL__');
   const [fResponsable, setFResponsable] = useState('__ALL__');
@@ -176,10 +177,11 @@ export default function ReparacionesPage() {
     });
   }, [reparaciones]);
 
-  // Resumen mes a mes: respeta el filtro de sucursal (para ver la evolución
-  // de una sucursal en particular) pero no los demás filtros de la tabla.
+  // Resumen mes a mes: tiene su propio selector de sucursal (independiente
+  // del filtro de la tabla de abajo), para poder ver la evolución de una
+  // sucursal sin afectar el listado.
   const porMes = useMemo(() => {
-    const base = fSucursal === '__ALL__' ? reparaciones : reparaciones.filter((r) => r.sucursal === fSucursal);
+    const base = mesSucursal === '__ALL__' ? reparaciones : reparaciones.filter((r) => r.sucursal === mesSucursal);
     return meses.map((key) => {
       const delMes = base.filter((r) => monthKey(r.fecha) === key);
       return {
@@ -190,7 +192,7 @@ export default function ReparacionesPage() {
         entregadas: delMes.filter((r) => r.estado === 'Entregada').length,
       };
     });
-  }, [reparaciones, meses, fSucursal]);
+  }, [reparaciones, meses, mesSucursal]);
 
   function editar(r) {
     setEditId(r.id);
@@ -290,7 +292,10 @@ export default function ReparacionesPage() {
       <div className="panel">
         <div className="panel-head">
           <h3>Resumen mes a mes</h3>
-          {fSucursal !== '__ALL__' && <span className="hint">{fSucursal}</span>}
+          <select value={mesSucursal} onChange={(e) => setMesSucursal(e.target.value)}>
+            <option value="__ALL__">Todas las sucursales</option>
+            {BRANCHES.map((b) => <option key={b}>{b}</option>)}
+          </select>
         </div>
         {porMes.length === 0 ? (
           <div className="empty-note">Aún no hay reparaciones con fecha para resumir por mes.</div>
