@@ -11,12 +11,12 @@ import { parseReparacionesBuffer } from '@/lib/reparacionesParser';
 
 const ARTICULOS = ['Cadena', 'Pulsera', 'Anillo', 'Aretes', 'Dije', 'Reloj', 'Otro'];
 const SERVICIOS = ['Brillado', 'Limpieza', 'Ajuste', 'Pulido', 'Enderezado', 'Soldadura', 'Otro'];
-const ESTADOS = ['Pendiente', 'En proceso', 'Terminada', 'Entregada'];
+const ESTADOS = ['En proceso', 'Terminada'];
 const WRITE_CHUNK = 450;
 
 const FORM_VACIO = {
   sucursal: BRANCHES[0], fecha: '', esCliente: 'Sí', nombre: '', telefono: '', direccion: '',
-  articulo: ARTICULOS[0], servicio: SERVICIOS[0], responsable: '', estado: 'Pendiente', valor: '', observaciones: '',
+  articulo: ARTICULOS[0], servicio: SERVICIOS[0], responsable: '', estado: 'En proceso', valor: '', observaciones: '',
 };
 
 function fmtFecha(s) {
