@@ -159,7 +159,8 @@ export default function ReparacionesPage() {
     const entregadas = filtradas.filter((r) => r.estado === 'Entregada').length;
     const pendientes = filtradas.filter((r) => r.estado === 'Pendiente' || r.estado === 'En proceso').length;
     const clientes = filtradas.filter((r) => r.esCliente === 'Sí').length;
-    return { total, terminadas, entregadas, pendientes, clientes };
+    const noClientes = filtradas.filter((r) => r.esCliente === 'No').length;
+    return { total, terminadas, entregadas, pendientes, clientes, noClientes };
   }, [filtradas]);
 
   // Resumen por sucursal: siempre sobre TODOS los registros (no el filtro
@@ -264,7 +265,7 @@ export default function ReparacionesPage() {
         <div className="kpi"><div className="label">Reparaciones (filtro actual)</div><div className="value">{fmtNum(kpis.total)}</div></div>
         <div className="kpi"><div className="label">Pendientes / en proceso</div><div className="value">{fmtNum(kpis.pendientes)}</div></div>
         <div className="kpi"><div className="label">Terminadas</div><div className="value">{fmtNum(kpis.terminadas)}</div></div>
-        <div className="kpi"><div className="label">Entregadas</div><div className="value">{fmtNum(kpis.entregadas)}</div></div>
+        <div className="kpi"><div className="label">Clientes / no clientes</div><div className="value">{fmtNum(kpis.clientes)} / {fmtNum(kpis.noClientes)}</div></div>
       </div>
 
       <div className="panel">
@@ -466,7 +467,12 @@ export default function ReparacionesPage() {
               <tbody>
                 {filtradas.map((r) => (
                   <tr key={r.id}>
-                    <td className="name">{r.nombre}</td>
+                    <td className="name">
+                      {r.nombre}{' '}
+                      <span className={`pill ${r.esCliente === 'Sí' ? 'pos' : r.esCliente === 'No' ? 'neu' : ''}`}>
+                        {r.esCliente === 'Sí' ? 'Cliente' : r.esCliente === 'No' ? 'No cliente' : '—'}
+                      </span>
+                    </td>
                     <td>{r.sucursal}</td>
                     <td>{fmtFecha(r.fecha)}</td>
                     <td>{r.telefono || '—'}</td>
