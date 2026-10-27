@@ -14,7 +14,23 @@ const AÑOS = ['2026', '2025'];
 
 const campoLabel = { fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 };
 
-function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
+const TIPO_INFO = {
+  consolidado: {
+    titulo: 'Panel de Consolidado',
+    nombrePdf: '"Movimientos de Caja Consolidados"',
+    descripcion: 'Sube aquí el PDF del consolidado del periodo (normalmente un mes). Ya trae el total, así que reemplaza directo el valor del mes.',
+    nombreOtro: 'Cuadre de caja',
+  },
+  cuadre: {
+    titulo: 'Panel de Cuadre de caja',
+    nombrePdf: '"Cuadre de Caja"',
+    descripcion: 'Sube aquí el PDF del cierre de un solo día. Se suma al valor que ya tenía guardado ese mes, para ir construyendo el mes día a día.',
+    nombreOtro: 'Consolidado',
+  },
+};
+
+function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
+  const info = TIPO_INFO[tipoEsperado];
   const { getIdToken } = useAuth();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -39,7 +55,7 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
   }
 
   function recomputar(resultadoPdf, suc, an, mi) {
-    if (resultadoPdf.tipo === 'cuadre') {
+    if (tipoEsperado === 'cuadre') {
       // Cuadre de caja = el cierre de un solo día: se suma a lo que ya
       // había guardado ese mes, para ir construyendo el mes día a día.
       const nuevos = {};
@@ -70,6 +86,9 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo leer el PDF');
+      if (data.tipo !== tipoEsperado) {
+        throw new Error(`Este PDF parece ser de ${TIPO_INFO[data.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[data.tipo]?.titulo || info.nombreOtro}".`);
+      }
       const suc = data.sucursal && BRANCHES.includes(data.sucursal) ? data.sucursal : branch;
       const an = data.anio || year;
       const mi = data.mes ? data.mes - 1 : 0;
@@ -92,11 +111,9 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
 
   return (
     <div className="panel">
-      <div className="panel-head"><h3>Cargar desde PDF (consolidado o cuadre de caja)</h3></div>
+      <div className="panel-head"><h3>{info.titulo}</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-        Arrastra aquí el PDF de <b>"Movimientos de Caja Consolidados"</b> (el total de un periodo: reemplaza el valor del mes)
-        o de <b>"Cuadre de Caja"</b> (el cierre de un solo día: se suma al valor que ya tenía el mes). Revisa los números
-        antes de aplicarlos a la tabla de abajo — no se guardan solos.
+        {info.descripcion} Revisa los números antes de aplicarlos a la tabla de abajo — no se guardan solos.
       </div>
 
       <div
@@ -134,7 +151,7 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
         <>
           <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 10 }}>
-              {resultado.tipo === 'cuadre' ? 'Cuadre de caja diario' : 'Consolidado del periodo'}
+              {tipoEsperado === 'cuadre' ? 'Cuadre de caja diario' : 'Consolidado del periodo'}
               {resultado.codigoDetectado && <> · Código detectado: <b>{resultado.codigoDetectado}</b></>}
               {!(resultado.sucursal && BRANCHES.includes(resultado.sucursal)) && ' · no se reconoció la sucursal, elígela abajo'}
             </div>
@@ -167,7 +184,7 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
                   <th style={{ textAlign: 'left' }}>Métrica</th>
                   <th>Valor actual guardado</th>
                   <th>Valor extraído del PDF</th>
-                  <th>{resultado.tipo === 'cuadre' ? 'A aplicar (actual + extraído)' : 'A aplicar'}</th>
+                  <th>{tipoEsperado === 'cuadre' ? 'A aplicar (actual + extraído)' : 'A aplicar'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,7 +213,7 @@ function CargarPdfCaja({ branch, year, monthly, onAplicar }) {
             </table>
           </div>
 
-          {resultado.tipo === 'cuadre' && (
+          {tipoEsperado === 'cuadre' && (
             <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 8 }}>
               Si ya habías cargado este mismo cuadre antes (o subes el mismo día dos veces), corrige el valor a mano para no duplicarlo.
             </div>
@@ -350,7 +367,8 @@ function EditarInner() {
 
       <ImportarExcel />
 
-      <CargarPdfCaja branch={branch} year={year} monthly={monthly} onAplicar={aplicarDesdePdf} />
+      <PanelPdfCaja tipoEsperado="consolidado" branch={branch} year={year} monthly={monthly} onAplicar={aplicarDesdePdf} />
+      <PanelPdfCaja tipoEsperado="cuadre" branch={branch} year={year} monthly={monthly} onAplicar={aplicarDesdePdf} />
 
       <div className="panel">
         <div className="panel-head">
