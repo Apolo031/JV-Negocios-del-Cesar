@@ -28,7 +28,7 @@ const TIPO_INFO = {
   cuadre: {
     titulo: 'Panel de Cuadre de caja',
     nombrePdf: '"Cuadre de Caja"',
-    descripcion: 'Sube aquí el PDF del cierre de un solo día. Se suma al valor que ya tenía guardado ese mes, para ir construyendo el mes día a día.',
+    descripcion: 'Sube aquí el PDF del cierre de un solo día. No modifica "Resumen general" — solo alimenta "Seguimiento semanal", agrupado por semana.',
     nombreOtro: 'Consolidado',
   },
 };
@@ -36,29 +36,15 @@ const TIPO_INFO = {
 let idCounter = 0;
 function nextId() { idCounter += 1; return `pdf_${Date.now()}_${idCounter}`; }
 
-/**
- * Para "cuadre" calcula el valor a aplicar como la suma de lo ya guardado en
- * Firestore más lo extraído de este archivo MÁS lo que ya llevan sumado otros
- * archivos del mismo lote que caigan en la misma sucursal/año/mes — así,
- * subir varios cuadres diarios del mismo mes en un solo lote los acumula a
- * todos en vez de que cada uno pise al anterior. Para "consolidado" el valor
- * extraído ya es el total del periodo, así que reemplaza directo.
- */
-function calcularValoresItem(tipoEsperado, monthly, resultadoPdf, suc, an, mi, otrosDelLoteMismoMes) {
-  if (tipoEsperado !== 'cuadre') return { ...resultadoPdf.valores };
-  const nuevos = {};
-  METRICAS_PDF.forEach((m) => {
-    const actualGuardado = series(monthly, suc, an, m)[mi] || 0;
-    const sumaDelLote = otrosDelLoteMismoMes.reduce((s, it) => s + (it.resultado?.valores[m] || 0), 0);
-    nuevos[m] = actualGuardado + sumaDelLote + (resultadoPdf.valores[m] || 0);
-  });
-  return nuevos;
+/** Id determinístico del cuadre diario de una sucursal en una fecha puntual — reutilizarlo hace que volver a subir el mismo día lo reemplace en vez de duplicarlo. */
+function idCuadreDiario(sucursal, anio, mes, dia) {
+  return `${sucursal}_${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
 function PanelPdfCaja({ tipoEsperado, branch, year }) {
   const info = TIPO_INFO[tipoEsperado];
   const { getIdToken } = useAuth();
-  const { monthly, saveMonthlyMetric, guardarCuadreDiario } = useData();
+  const { monthly, cuadresDiarios, saveMonthlyMetric, guardarCuadreDiario } = useData();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [items, setItems] = useState([]); // { id, file, nombre, estado, error, resultado, sucursalSel, añoSel, mesIdx, valores, colapsado }
@@ -94,6 +80,15 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, valores: { ...it.valores, [metric]: value } } : it)));
   }
 
+  /** Lo que ya hay guardado para el renglón de la tabla de revisión: el mes completo para Consolidado, o este mismo día para Cuadre de caja. */
+  function valorActualGuardado(it, metric) {
+    if (tipoEsperado === 'cuadre') {
+      const existente = cuadresDiarios.find((c) => c.sucursal === it.sucursalSel && String(c.anio) === String(it.añoSel) && c.mes === it.mesIdx + 1 && c.dia === it.resultado.dia);
+      return existente?.valores?.[metric] || 0;
+    }
+    return series(monthly, it.sucursalSel, it.añoSel, metric)[it.mesIdx] || 0;
+  }
+
   async function handleExtraerTodos() {
     setExtrayendoTodos(true);
     setMensaje('');
@@ -112,11 +107,9 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
         const suc = data.sucursal && BRANCHES.includes(data.sucursal) ? data.sucursal : branch;
         const an = data.anio || year;
         const mi = data.mes ? data.mes - 1 : 0;
-        setItems((prev) => {
-          const otrosDelLoteMismoMes = prev.filter((x) => x.id !== it.id && x.resultado && x.sucursalSel === suc && x.añoSel === an && x.mesIdx === mi);
-          const valores = calcularValoresItem(tipoEsperado, monthly, data, suc, an, mi, otrosDelLoteMismoMes);
-          return prev.map((x) => (x.id === it.id ? { ...x, estado: 'listo', resultado: data, sucursalSel: suc, añoSel: an, mesIdx: mi, valores } : x));
-        });
+        setItems((prev) => prev.map((x) => (x.id === it.id
+          ? { ...x, estado: 'listo', resultado: data, sucursalSel: suc, añoSel: an, mesIdx: mi, valores: { ...data.valores } }
+          : x)));
       } catch (err) {
         setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, estado: 'error', error: err.message } : x)));
       }
@@ -130,23 +123,24 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
     setMensaje('');
     try {
       for (const it of listos) {
-        for (const metric of METRICAS_PDF) {
-          const arr = [...series(monthly, it.sucursalSel, it.añoSel, metric)];
-          arr[it.mesIdx] = it.valores[metric];
-          await saveMonthlyMetric(it.sucursalSel, it.añoSel, metric, arr);
-        }
-        // Además del acumulado del mes, se guarda el cuadre de ese día en su
-        // propia ficha (sucursal + fecha) para que "Seguimiento semanal"
-        // pueda agruparlos por semana. Se guardan los valores TAL COMO los
-        // extrajo el PDF (no la columna "a aplicar", que ya trae sumado el
-        // acumulado del mes) — si no, sumar varios días duplicaría el total.
-        // Si ya existía un cuadre para esa misma sucursal/fecha, lo
-        // reemplaza en vez de duplicarlo.
-        if (tipoEsperado === 'cuadre' && it.resultado.dia) {
-          const diaId = `${it.sucursalSel}_${it.añoSel}-${String(it.mesIdx + 1).padStart(2, '0')}-${String(it.resultado.dia).padStart(2, '0')}`;
+        if (tipoEsperado === 'consolidado') {
+          // El consolidado ya trae el total del periodo: reemplaza directo
+          // el mes en "monthly", que es lo que alimenta "Resumen general".
+          for (const metric of METRICAS_PDF) {
+            const arr = [...series(monthly, it.sucursalSel, it.añoSel, metric)];
+            arr[it.mesIdx] = it.valores[metric];
+            await saveMonthlyMetric(it.sucursalSel, it.añoSel, metric, arr);
+          }
+        } else {
+          // El cuadre de caja diario NO toca "monthly"/"Resumen general" —
+          // solo queda en su propia ficha (sucursal + fecha), que es lo que
+          // lee "Seguimiento semanal". Volver a subir el mismo día reemplaza
+          // su ficha en vez de duplicarla.
+          if (!it.resultado.dia) continue;
+          const diaId = idCuadreDiario(it.sucursalSel, it.añoSel, it.mesIdx + 1, it.resultado.dia);
           await guardarCuadreDiario(diaId, {
             sucursal: it.sucursalSel, anio: it.añoSel, mes: it.mesIdx + 1, dia: it.resultado.dia,
-            valores: it.resultado.valores, actualizadoEn: Date.now(),
+            valores: it.valores, actualizadoEn: Date.now(),
           });
         }
       }
@@ -255,14 +249,14 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
                   <thead>
                     <tr>
                       <th style={{ textAlign: 'left' }}>Métrica</th>
-                      <th>Valor actual guardado</th>
+                      <th>{tipoEsperado === 'cuadre' ? 'Ya guardado para este día' : 'Valor actual guardado'}</th>
                       <th>Valor extraído del PDF</th>
-                      <th>{tipoEsperado === 'cuadre' ? 'A aplicar (actual + extraído)' : 'A aplicar'}</th>
+                      <th>A aplicar</th>
                     </tr>
                   </thead>
                   <tbody>
                     {METRICAS_PDF.map((metric) => {
-                      const actual = series(monthly, it.sucursalSel, it.añoSel, metric)[it.mesIdx] || 0;
+                      const actual = valorActualGuardado(it, metric);
                       const extraido = it.resultado.valores[metric];
                       const nuevo = it.valores[metric];
                       const cambia = actual !== nuevo;
@@ -288,7 +282,7 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
 
               {tipoEsperado === 'cuadre' && (
                 <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 8 }}>
-                  Si ya habías cargado este mismo día antes (en este lote o en otro anterior), corrige el valor a mano para no duplicarlo.
+                  Esto solo va a "Seguimiento semanal" — no modifica "Resumen general". Si ya habías cargado este mismo día antes, se reemplaza con estos valores.
                 </div>
               )}
             </>
