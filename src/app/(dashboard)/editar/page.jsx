@@ -33,97 +33,130 @@ const TIPO_INFO = {
   },
 };
 
-function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
+let idCounter = 0;
+function nextId() { idCounter += 1; return `pdf_${Date.now()}_${idCounter}`; }
+
+/**
+ * Para "cuadre" calcula el valor a aplicar como la suma de lo ya guardado en
+ * Firestore más lo extraído de este archivo MÁS lo que ya llevan sumado otros
+ * archivos del mismo lote que caigan en la misma sucursal/año/mes — así,
+ * subir varios cuadres diarios del mismo mes en un solo lote los acumula a
+ * todos en vez de que cada uno pise al anterior. Para "consolidado" el valor
+ * extraído ya es el total del periodo, así que reemplaza directo.
+ */
+function calcularValoresItem(tipoEsperado, monthly, resultadoPdf, suc, an, mi, otrosDelLoteMismoMes) {
+  if (tipoEsperado !== 'cuadre') return { ...resultadoPdf.valores };
+  const nuevos = {};
+  METRICAS_PDF.forEach((m) => {
+    const actualGuardado = series(monthly, suc, an, m)[mi] || 0;
+    const sumaDelLote = otrosDelLoteMismoMes.reduce((s, it) => s + (it.resultado?.valores[m] || 0), 0);
+    nuevos[m] = actualGuardado + sumaDelLote + (resultadoPdf.valores[m] || 0);
+  });
+  return nuevos;
+}
+
+function PanelPdfCaja({ tipoEsperado, branch, year }) {
   const info = TIPO_INFO[tipoEsperado];
   const { getIdToken } = useAuth();
+  const { monthly, saveMonthlyMetric } = useData();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
-  const [file, setFile] = useState(null);
-  const [extrayendo, setExtrayendo] = useState(false);
-  const [error, setError] = useState('');
-  const [resultado, setResultado] = useState(null);
-  const [sucursalSel, setSucursalSel] = useState(branch);
-  const [añoSel, setAñoSel] = useState(year);
-  const [mesIdx, setMesIdx] = useState(0);
-  const [valores, setValores] = useState(null);
-  const [aplicado, setAplicado] = useState(false);
+  const [items, setItems] = useState([]); // { id, file, nombre, estado, error, resultado, sucursalSel, añoSel, mesIdx, valores, colapsado }
+  const [extrayendoTodos, setExtrayendoTodos] = useState(false);
+  const [guardandoTodo, setGuardandoTodo] = useState(false);
+  const [mensaje, setMensaje] = useState('');
 
-  function limpiar() {
-    setFile(null); setResultado(null); setValores(null); setError(''); setAplicado(false);
+  const pendientes = items.filter((it) => it.estado === 'pendiente' || it.estado === 'error');
+  const listos = items.filter((it) => it.estado === 'listo');
+
+  function agregarArchivos(fileList) {
+    const nuevos = Array.from(fileList || [])
+      .filter((f) => f.type === 'application/pdf')
+      .map((f) => ({ id: nextId(), file: f, nombre: f.name, estado: 'pendiente', colapsado: false }));
+    if (nuevos.length) setItems((prev) => [...prev, ...nuevos]);
+    setMensaje('');
   }
 
-  function elegirArchivo(f) {
-    if (!f) return;
-    if (f.type !== 'application/pdf') { setError('El archivo debe ser un PDF.'); return; }
-    setFile(f); setResultado(null); setValores(null); setError(''); setAplicado(false);
+  function quitarItem(id) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  function recomputar(resultadoPdf, suc, an, mi) {
-    if (tipoEsperado === 'cuadre') {
-      // Cuadre de caja = el cierre de un solo día: se suma a lo que ya
-      // había guardado ese mes, para ir construyendo el mes día a día.
-      const nuevos = {};
-      METRICAS_PDF.forEach((m) => {
-        const actual = series(monthly, suc, an, m)[mi] || 0;
-        nuevos[m] = actual + (resultadoPdf.valores[m] || 0);
-      });
-      setValores(nuevos);
-    } else {
-      // Consolidado = ya trae el total del periodo: reemplaza directo.
-      setValores({ ...resultadoPdf.valores });
-    }
+  function limpiarTodo() {
+    setItems([]);
+    setMensaje('');
   }
 
-  async function handleExtraer() {
-    if (!file) { setError('Arrastra o elige primero el PDF.'); return; }
-    setExtrayendo(true);
-    setError('');
-    setAplicado(false);
-    try {
-      const token = await getIdToken();
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/parse-caja-pdf', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'No se pudo leer el PDF');
-      if (data.tipo !== tipoEsperado) {
-        throw new Error(`Este PDF parece ser de ${TIPO_INFO[data.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[data.tipo]?.titulo || info.nombreOtro}".`);
+  function toggleColapsado(id) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, colapsado: !it.colapsado } : it)));
+  }
+
+  function actualizarValor(id, metric, value) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, valores: { ...it.valores, [metric]: value } } : it)));
+  }
+
+  async function handleExtraerTodos() {
+    setExtrayendoTodos(true);
+    setMensaje('');
+    for (const it of pendientes) {
+      setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, estado: 'leyendo', error: '' } : x)));
+      try {
+        const token = await getIdToken();
+        const formData = new FormData();
+        formData.append('file', it.file);
+        const res = await fetch('/api/parse-caja-pdf', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'No se pudo leer el PDF');
+        if (data.tipo !== tipoEsperado) {
+          throw new Error(`Este PDF parece ser de ${TIPO_INFO[data.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[data.tipo]?.titulo || info.nombreOtro}".`);
+        }
+        const suc = data.sucursal && BRANCHES.includes(data.sucursal) ? data.sucursal : branch;
+        const an = data.anio || year;
+        const mi = data.mes ? data.mes - 1 : 0;
+        setItems((prev) => {
+          const otrosDelLoteMismoMes = prev.filter((x) => x.id !== it.id && x.resultado && x.sucursalSel === suc && x.añoSel === an && x.mesIdx === mi);
+          const valores = calcularValoresItem(tipoEsperado, monthly, data, suc, an, mi, otrosDelLoteMismoMes);
+          return prev.map((x) => (x.id === it.id ? { ...x, estado: 'listo', resultado: data, sucursalSel: suc, añoSel: an, mesIdx: mi, valores } : x));
+        });
+      } catch (err) {
+        setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, estado: 'error', error: err.message } : x)));
       }
-      const suc = data.sucursal && BRANCHES.includes(data.sucursal) ? data.sucursal : branch;
-      const an = data.anio || year;
-      const mi = data.mes ? data.mes - 1 : 0;
-      setResultado(data);
-      setSucursalSel(suc);
-      setAñoSel(an);
-      setMesIdx(mi);
-      recomputar(data, suc, an, mi);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setExtrayendo(false);
     }
+    setExtrayendoTodos(false);
   }
 
-  function handleAplicar() {
-    onAplicar(sucursalSel, añoSel, mesIdx, valores);
-    setAplicado(true);
+  async function handleGuardarTodo() {
+    if (!listos.length) return;
+    setGuardandoTodo(true);
+    setMensaje('');
+    try {
+      for (const it of listos) {
+        for (const metric of METRICAS_PDF) {
+          const arr = [...series(monthly, it.sucursalSel, it.añoSel, metric)];
+          arr[it.mesIdx] = it.valores[metric];
+          await saveMonthlyMetric(it.sucursalSel, it.añoSel, metric, arr);
+        }
+      }
+      setMensaje(`Guardado: ${listos.length} archivo${listos.length === 1 ? '' : 's'}.`);
+      setItems((prev) => prev.filter((it) => it.estado !== 'listo'));
+    } catch (err) {
+      setMensaje('Error al guardar: ' + err.message);
+    } finally {
+      setGuardandoTodo(false);
+      setTimeout(() => setMensaje(''), 6000);
+    }
   }
 
   return (
     <div className="panel">
       <div className="panel-head"><h3>{info.titulo}</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-        {info.descripcion} Revisa los números antes de aplicarlos a la tabla de abajo — no se guardan solos.
+        {info.descripcion} Puedes arrastrar varios PDF a la vez. Revisa los números de cada uno antes de guardar — no se guardan solos.
       </div>
 
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); elegirArchivo(e.dataTransfer.files?.[0]); }}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); agregarArchivos(e.dataTransfer.files); }}
         onClick={() => inputRef.current?.click()}
         style={{
           border: `2px dashed ${dragOver ? 'var(--gold)' : 'var(--border)'}`,
@@ -132,122 +165,122 @@ function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
         }}
       >
         <input
-          ref={inputRef} type="file" accept="application/pdf" style={{ display: 'none' }}
-          onChange={(e) => elegirArchivo(e.target.files?.[0])}
+          ref={inputRef} type="file" accept="application/pdf" multiple style={{ display: 'none' }}
+          onChange={(e) => { agregarArchivos(e.target.files); e.target.value = ''; }}
         />
-        {file ? (
-          <div style={{ fontSize: 13 }}>📄 <b>{file.name}</b></div>
-        ) : (
-          <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Arrastra el PDF aquí, o haz clic para elegirlo</div>
-        )}
+        <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+          Arrastra uno o varios PDF aquí, o haz clic para elegirlos{items.length > 0 && ` (${items.length} en la lista)`}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
-        <button className="btn" type="button" onClick={handleExtraer} disabled={extrayendo || !file}>
-          {extrayendo ? 'Leyendo PDF…' : 'Extraer datos'}
-        </button>
-        {(file || resultado) && <button className="btn-outline" type="button" onClick={limpiar}>Quitar</button>}
-      </div>
+      {items.length > 0 && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn" type="button" onClick={handleExtraerTodos} disabled={extrayendoTodos || pendientes.length === 0}>
+            {extrayendoTodos ? 'Leyendo PDF…' : `Extraer datos (${pendientes.length} pendiente${pendientes.length === 1 ? '' : 's'})`}
+          </button>
+          <button className="btn" type="button" onClick={handleGuardarTodo} disabled={guardandoTodo || listos.length === 0}>
+            {guardandoTodo ? 'Guardando…' : `Guardar todo en la base de datos (${listos.length})`}
+          </button>
+          <button className="btn-outline" type="button" onClick={limpiarTodo}>Quitar todos</button>
+        </div>
+      )}
 
-      {error && <div className="login-error" style={{ marginTop: 12 }}>{error}</div>}
+      {mensaje && <div style={{ fontSize: 12.5, color: mensaje.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginTop: 10 }}>{mensaje}</div>}
 
-      {resultado && valores && (
-        <>
-          <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 10 }}>
-              {tipoEsperado === 'cuadre' ? 'Cuadre de caja diario' : 'Consolidado del periodo'}
-              {resultado.codigoDetectado && <> · Código detectado: <b>{resultado.codigoDetectado}</b></>}
-              {(() => {
-                const ini = fechaStr(resultado.dia, resultado.mes, resultado.anio);
-                const fin = fechaStr(resultado.diaFin, resultado.mesFin, resultado.anioFin);
-                if (!ini) return null;
-                return <> · Periodo del PDF: <b>{ini}{fin && fin !== ini ? ` – ${fin}` : ''}</b></>;
-              })()}
-            </div>
-
-            {resultado.multiMes && (
-              <div className="login-error" style={{ marginBottom: 12 }}>
-                ⚠ Este PDF cubre más de un mes (de {fechaStr(resultado.dia, resultado.mes, resultado.anio)} a {fechaStr(resultado.diaFin, resultado.mesFin, resultado.anioFin)}).
-                El total extraído no corresponde a un solo mes de "Editar datos" — revisa en el reporte original si el rango de fechas es el que querías generar,
-                o aplícalo solo como referencia y corrige el valor a mano abajo antes de guardar.
-              </div>
-            )}
-
-            {resultado.sucursal && BRANCHES.includes(resultado.sucursal) ? (
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={campoLabel}>Sucursal</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{sucursalSel}</div>
-                </div>
-                <div>
-                  <div style={campoLabel}>Año</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{añoSel}</div>
-                </div>
-                <div>
-                  <div style={campoLabel}>Mes</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{MONTH_NAMES_FULL[mesIdx]}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="login-error" style={{ marginBottom: 4 }}>
-                No se reconoció la sucursal en el PDF — se va a aplicar a <b>{sucursalSel}</b> (la que está seleccionada arriba).
-                Si no es la correcta, cambia la sucursal en el selector de arriba y vuelve a darle "Extraer datos".
-              </div>
-            )}
-          </div>
-
-          <div style={{ overflowX: 'auto', marginTop: 14 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>Métrica</th>
-                  <th>Valor actual guardado</th>
-                  <th>Valor extraído del PDF</th>
-                  <th>{tipoEsperado === 'cuadre' ? 'A aplicar (actual + extraído)' : 'A aplicar'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {METRICAS_PDF.map((metric) => {
-                  const actual = series(monthly, sucursalSel, añoSel, metric)[mesIdx] || 0;
-                  const extraido = resultado.valores[metric];
-                  const nuevo = valores[metric];
-                  const cambia = actual !== nuevo;
-                  return (
-                    <tr key={metric}>
-                      <td className="name">{METRIC_LABEL[metric]}</td>
-                      <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, actual)}</td>
-                      <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, extraido)}</td>
-                      <td>
-                        <input
-                          type="number" step="any"
-                          value={nuevo}
-                          onChange={(e) => setValores({ ...valores, [metric]: parseFloat(e.target.value) || 0 })}
-                          style={{ width: 130, textAlign: 'right', fontWeight: cambia ? 700 : 400, color: cambia ? 'var(--gold-light)' : undefined }}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {tipoEsperado === 'cuadre' && (
-            <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 8 }}>
-              Si ya habías cargado este mismo cuadre antes (o subes el mismo día dos veces), corrige el valor a mano para no duplicarlo.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-            <button className="btn" type="button" onClick={handleAplicar}>Aplicar a la tabla de abajo</button>
-            {aplicado && (
-              <span style={{ fontSize: 12.5, color: 'var(--green)' }}>
-                Aplicado a {sucursalSel} · {MONTH_NAMES_FULL[mesIdx]} {añoSel} — revisa y dale "Guardar cambios" abajo.
+      {items.map((it) => (
+        <div key={it.id} style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13 }}>📄 <b>{it.nombre}</b></span>
+            <span className={`pill ${it.estado === 'listo' ? 'pos' : it.estado === 'error' ? 'neg' : 'neu'}`}>
+              {{ pendiente: 'Pendiente', leyendo: 'Leyendo…', listo: 'Listo para revisar', error: 'Error' }[it.estado]}
+            </span>
+            {it.estado === 'listo' && (
+              <span style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                {it.sucursalSel} · {MONTH_NAMES_FULL[it.mesIdx]} {it.añoSel}
               </span>
             )}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {it.estado === 'listo' && (
+                <button className="btn-outline" type="button" onClick={() => toggleColapsado(it.id)} style={{ padding: '4px 10px', fontSize: 12 }}>
+                  {it.colapsado ? 'Ver detalle' : 'Ocultar detalle'}
+                </button>
+              )}
+              <button className="btn-outline" type="button" onClick={() => quitarItem(it.id)} style={{ padding: '4px 10px', fontSize: 12 }}>Quitar</button>
+            </div>
           </div>
-        </>
-      )}
+
+          {it.estado === 'error' && <div className="login-error" style={{ marginTop: 10 }}>{it.error}</div>}
+
+          {it.estado === 'listo' && !it.colapsado && (
+            <>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>
+                {it.resultado.codigoDetectado && <> Código detectado: <b>{it.resultado.codigoDetectado}</b></>}
+                {(() => {
+                  const ini = fechaStr(it.resultado.dia, it.resultado.mes, it.resultado.anio);
+                  const fin = fechaStr(it.resultado.diaFin, it.resultado.mesFin, it.resultado.anioFin);
+                  if (!ini) return null;
+                  return <> · Periodo del PDF: <b>{ini}{fin && fin !== ini ? ` – ${fin}` : ''}</b></>;
+                })()}
+              </div>
+
+              {it.resultado.multiMes && (
+                <div className="login-error" style={{ marginTop: 10 }}>
+                  ⚠ Este PDF cubre más de un mes (de {fechaStr(it.resultado.dia, it.resultado.mes, it.resultado.anio)} a {fechaStr(it.resultado.diaFin, it.resultado.mesFin, it.resultado.anioFin)}).
+                  El total extraído no corresponde a un solo mes de "Editar datos" — revísalo antes de guardar.
+                </div>
+              )}
+
+              {!(it.resultado.sucursal && BRANCHES.includes(it.resultado.sucursal)) && (
+                <div className="login-error" style={{ marginTop: 10 }}>
+                  No se reconoció la sucursal en este PDF — se va a aplicar a <b>{it.sucursalSel}</b> (la sucursal seleccionada arriba de la página).
+                </div>
+              )}
+
+              <div style={{ overflowX: 'auto', marginTop: 10 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>Métrica</th>
+                      <th>Valor actual guardado</th>
+                      <th>Valor extraído del PDF</th>
+                      <th>{tipoEsperado === 'cuadre' ? 'A aplicar (actual + extraído)' : 'A aplicar'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {METRICAS_PDF.map((metric) => {
+                      const actual = series(monthly, it.sucursalSel, it.añoSel, metric)[it.mesIdx] || 0;
+                      const extraido = it.resultado.valores[metric];
+                      const nuevo = it.valores[metric];
+                      const cambia = actual !== nuevo;
+                      return (
+                        <tr key={metric}>
+                          <td className="name">{METRIC_LABEL[metric]}</td>
+                          <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, actual)}</td>
+                          <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, extraido)}</td>
+                          <td>
+                            <input
+                              type="number" step="any"
+                              value={nuevo}
+                              onChange={(e) => actualizarValor(it.id, metric, parseFloat(e.target.value) || 0)}
+                              style={{ width: 130, textAlign: 'right', fontWeight: cambia ? 700 : 400, color: cambia ? 'var(--gold-light)' : undefined }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {tipoEsperado === 'cuadre' && (
+                <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 8 }}>
+                  Si ya habías cargado este mismo día antes (en este lote o en otro anterior), corrige el valor a mano para no duplicarlo.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -349,27 +382,6 @@ function EditarInner() {
     }
   }
 
-  // Lo que extrae un PDF de caja se aplica como si lo hubiera tecleado el
-  // admin en la tabla de abajo: queda en `draft` sin guardarse hasta que le
-  // den "Guardar cambios". Si la sucursal/año de ese PDF no es la que está
-  // seleccionada arriba, se cambia el selector y se empieza un draft nuevo
-  // (para no mezclar ediciones pendientes de una sucursal con otra).
-  function aplicarDesdePdf(suc, añoPdf, mesIdx, valores) {
-    const mismoContexto = suc === branch && añoPdf === year;
-    setBranch(suc);
-    setYear(añoPdf);
-    setDraft((prev) => {
-      const base = mismoContexto ? (prev || {}) : {};
-      const next = { ...base };
-      METRICAS_PDF.forEach((metric) => {
-        const arr = next[metric] ? [...next[metric]] : [...series(monthly, suc, añoPdf, metric)];
-        arr[mesIdx] = valores[metric];
-        next[metric] = arr;
-      });
-      return next;
-    });
-  }
-
   return (
     <div>
       <div className="topbar">
@@ -386,8 +398,8 @@ function EditarInner() {
 
       <ImportarExcel />
 
-      <PanelPdfCaja tipoEsperado="consolidado" branch={branch} year={year} monthly={monthly} onAplicar={aplicarDesdePdf} />
-      <PanelPdfCaja tipoEsperado="cuadre" branch={branch} year={year} monthly={monthly} onAplicar={aplicarDesdePdf} />
+      <PanelPdfCaja tipoEsperado="consolidado" branch={branch} year={year} />
+      <PanelPdfCaja tipoEsperado="cuadre" branch={branch} year={year} />
 
       <div className="panel">
         <div className="panel-head">
