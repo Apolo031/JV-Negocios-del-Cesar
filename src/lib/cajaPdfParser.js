@@ -74,13 +74,24 @@ function detectarSucursalYCodigo(lines) {
   return { sucursal, codigoDetectado: codigoLine || null };
 }
 
-/** "Fecha inicio: 01/09/2026" → { dia, mes, anio } */
+/**
+ * "Fecha inicio: 01/09/2026 Fecha fin: 30/09/2026" → fecha de inicio (dia/
+ * mes/anio, igual que antes) más fecha de fin (diaFin/mesFin/anioFin) y
+ * `multiMes`, para poder avisar cuando el periodo del reporte cruza de un
+ * mes a otro — en ese caso el total no corresponde a un solo mes de
+ * "Editar datos" y hay que revisarlo a mano antes de aplicarlo.
+ */
 function detectarFecha(lines) {
+  const vacio = { dia: null, mes: null, anio: null, diaFin: null, mesFin: null, anioFin: null, multiMes: false };
   const fechaLine = lines.find((l) => l.startsWith('Fecha inicio:'));
-  if (!fechaLine) return { dia: null, mes: null, anio: null };
-  const m = fechaLine.match(/Fecha inicio:\s*(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!m) return { dia: null, mes: null, anio: null };
-  return { dia: parseInt(m[1], 10), mes: parseInt(m[2], 10), anio: m[3] };
+  if (!fechaLine) return vacio;
+  const mIni = fechaLine.match(/Fecha inicio:\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  const mFin = fechaLine.match(/Fecha fin:\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!mIni) return vacio;
+  const dia = parseInt(mIni[1], 10), mes = parseInt(mIni[2], 10), anio = mIni[3];
+  if (!mFin) return { dia, mes, anio, diaFin: null, mesFin: null, anioFin: null, multiMes: false };
+  const diaFin = parseInt(mFin[1], 10), mesFin = parseInt(mFin[2], 10), anioFin = mFin[3];
+  return { dia, mes, anio, diaFin, mesFin, anioFin, multiMes: mes !== mesFin || anio !== anioFin };
 }
 
 function extraerIndicadores(lines, headers) {
@@ -141,9 +152,9 @@ export function parseCajaPdfText(text) {
   else if (lines.some((l) => l.includes('CUADRE DE CAJA'))) tipo = 'cuadre';
 
   const { sucursal, codigoDetectado } = detectarSucursalYCodigo(lines);
-  const { dia, mes, anio } = detectarFecha(lines);
+  const { dia, mes, anio, diaFin, mesFin, anioFin, multiMes } = detectarFecha(lines);
   const headers = tipo === 'cuadre' ? HEADERS_CUADRE : HEADERS_CONSOLIDADO;
   const { valores, detalle } = extraerIndicadores(lines, headers);
 
-  return { tipo, sucursal, dia, mes, anio, codigoDetectado, valores, detalle };
+  return { tipo, sucursal, dia, mes, anio, diaFin, mesFin, anioFin, multiMes, codigoDetectado, valores, detalle };
 }

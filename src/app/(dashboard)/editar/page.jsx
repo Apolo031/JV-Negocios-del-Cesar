@@ -14,6 +14,11 @@ const AÑOS = ['2026', '2025'];
 
 const campoLabel = { fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 };
 
+function fechaStr(dia, mes, anio) {
+  if (!dia || !mes || !anio) return null;
+  return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${anio}`;
+}
+
 const TIPO_INFO = {
   consolidado: {
     titulo: 'Panel de Consolidado',
@@ -154,7 +159,22 @@ function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
               {tipoEsperado === 'cuadre' ? 'Cuadre de caja diario' : 'Consolidado del periodo'}
               {resultado.codigoDetectado && <> · Código detectado: <b>{resultado.codigoDetectado}</b></>}
               {!(resultado.sucursal && BRANCHES.includes(resultado.sucursal)) && ' · no se reconoció la sucursal, elígela abajo'}
+              {(() => {
+                const ini = fechaStr(resultado.dia, resultado.mes, resultado.anio);
+                const fin = fechaStr(resultado.diaFin, resultado.mesFin, resultado.anioFin);
+                if (!ini) return null;
+                return <> · Periodo del PDF: <b>{ini}{fin && fin !== ini ? ` – ${fin}` : ''}</b></>;
+              })()}
             </div>
+
+            {resultado.multiMes && (
+              <div className="login-error" style={{ marginBottom: 12 }}>
+                ⚠ Este PDF cubre más de un mes (de {fechaStr(resultado.dia, resultado.mes, resultado.anio)} a {fechaStr(resultado.diaFin, resultado.mesFin, resultado.anioFin)}).
+                El total extraído no corresponde a un solo mes de "Editar datos" — revisa en el reporte original si el rango de fechas es el que querías generar,
+                o aplícalo solo como referencia y corrige el valor a mano abajo antes de guardar.
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <div>
                 <div style={campoLabel}>Sucursal</div>
