@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import '@/lib/pdfPolyfills'; // debe ir antes del import de pdf-parse — ver ese archivo
 import { PDFParse } from 'pdf-parse';
 import { requireAdmin } from '@/lib/apiAuth';
 import { parseConsolidadoText } from '@/lib/consolidadoParser';

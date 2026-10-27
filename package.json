@@ -10,6 +10,7 @@
     "seed": "node scripts/seedData.js"
   },
   "dependencies": {
+    "@thednp/dommatrix": "^3.1.2",
     "chart.js": "4.4.4",
     "firebase": "10.12.4",
     "firebase-admin": "12.3.0",
