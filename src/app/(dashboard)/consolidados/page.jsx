@@ -4,7 +4,12 @@ import { useState } from 'react';
 import RequireAdmin from '@/components/RequireAdmin';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { BRANCHES, METRIC_LABEL, MONTH_NAMES_FULL, fmtByMetric, series } from '@/lib/dataHelpers';
+import ChartCanvas from '@/components/charts/ChartCanvas';
+import {
+  BRANCHES, BRANCH_COLOR, ALL_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL,
+  fmtMoney, fmtMoneyShort, fmtGr, fmtByMetric, fmtConcepto,
+  series, totalFor, lastActiveMonth2026,
+} from '@/lib/dataHelpers';
 
 // Las 8 métricas que el PDF de "Movimientos de Caja Consolidados" trae — las
 // mismas que ya se cargan a mano en "Editar datos". Efecty/Sistecrédito no
@@ -12,6 +17,136 @@ import { BRANCHES, METRIC_LABEL, MONTH_NAMES_FULL, fmtByMetric, series } from '@
 const METRICAS_PDF = ['gr_contrato', 'valor_contratado', 'utilidad', 'prorroga', 'venta_oro', 'valor_venta_oro', 'venta_plata', 'valor_venta_plata'];
 
 const AÑOS = ['2026', '2025'];
+
+// Panel de resumen: queda siempre visible en esta misma pantalla (arriba de
+// la zona de carga) para que, apenas se guarda un consolidado, se vea de una
+// el efecto en todas las joyerías sin salir de "Consolidados". Lee en vivo
+// del mismo `monthly` que ya actualiza "Editar datos", así que se refresca
+// solo en cuanto se guarda.
+function ResumenGeneral({ monthly }) {
+  const [period, setPeriod] = useState('ytd'); // 'ytd' | 'mes' | '2025'
+  const [mesIndividual, setMesIndividual] = useState(null);
+
+  const lastM = lastActiveMonth2026(monthly);
+  const mesSel = mesIndividual === null ? lastM : mesIndividual;
+  const isMes = period === 'mes';
+  const year = period === '2025' ? '2025' : '2026';
+  const upto = period === '2025' ? 12 : lastM + 1;
+
+  function valFor(y, branch, metric) {
+    return isMes ? (series(monthly, branch, y, metric)[mesSel] || 0) : totalFor(monthly, branch, y, metric, upto);
+  }
+  function valAllFor(y, metric) {
+    return BRANCHES.reduce((s, b) => s + valFor(y, b, metric), 0);
+  }
+
+  const totalContratado = valAllFor(year, 'valor_contratado');
+  const totalUtilidad = valAllFor(year, 'utilidad');
+  const totalGramos = valAllFor(year, 'gr_contrato');
+  const margen = totalContratado ? (totalUtilidad / totalContratado) * 100 : 0;
+
+  const periodoLabel = period === '2025' ? '2025, año completo' : (isMes ? `${MONTH_NAMES_FULL[mesSel]} 2026` : `2026, Ene–${MONTH_NAMES[lastM]}`);
+
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-head">
+          <h3>Resumen general — todas las joyerías</h3>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="btn-group">
+              <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>Año en curso</button>
+              <button className={`btn-toggle${isMes ? ' active' : ''}`} onClick={() => setPeriod('mes')}>Un mes</button>
+              <button className={`btn-toggle${period === '2025' ? ' active' : ''}`} onClick={() => setPeriod('2025')}>Todo 2025</button>
+            </div>
+            {isMes && (
+              <select value={mesSel} onChange={(e) => setMesIndividual(parseInt(e.target.value, 10))} title="Mes a mostrar">
+                {MONTH_NAMES_FULL.slice(0, lastM + 1).map((m, i) => <option key={m} value={i}>{m} 2026</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+        <div className="kpi-row">
+          <div className="kpi">
+            <div className="label">Valor contratado</div>
+            <div className="value">{fmtMoney(totalContratado)}</div>
+          </div>
+          <div className="kpi">
+            <div className="label">Utilidad total</div>
+            <div className="value">{fmtMoney(totalUtilidad)}</div>
+          </div>
+          <div className="kpi">
+            <div className="label">Margen sobre lo contratado</div>
+            <div className="value">{margen.toFixed(1)}%</div>
+          </div>
+          <div className="kpi">
+            <div className="label">Gramos en contrato (oro)</div>
+            <div className="value">{fmtGr(totalGramos)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3>Comparativo por sucursal — valor contratado y utilidad</h3>
+          <span className="hint">{periodoLabel}</span>
+        </div>
+        <ChartCanvas
+          height={260}
+          config={{
+            type: 'bar',
+            data: {
+              labels: BRANCHES,
+              datasets: [
+                { label: 'Valor contratado', data: BRANCHES.map((b) => valFor(year, b, 'valor_contratado')), backgroundColor: 'rgba(199,163,57,0.55)', borderColor: '#c7a339', borderWidth: 1, borderRadius: 4 },
+                { label: 'Utilidad', data: BRANCHES.map((b) => valFor(year, b, 'utilidad')), backgroundColor: 'rgba(91,141,190,0.65)', borderColor: '#5b8dbe', borderWidth: 1, borderRadius: 4 },
+              ],
+            },
+            options: {
+              plugins: { tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMoney(c.raw)}` } } },
+              scales: { y: { ticks: { callback: (v) => fmtMoneyShort(v) } } },
+            },
+          }}
+        />
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3>Resultados por sucursal — todos los conceptos</h3>
+          <span className="hint">{periodoLabel}</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Concepto</th>
+                {BRANCHES.map((b) => <th key={b}>{b}</th>)}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_METRICS.map((metric) => (
+                <tr key={metric}>
+                  <td className="name">{METRIC_LABEL[metric]}</td>
+                  {BRANCHES.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
+                  <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, valAllFor(year, metric))}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 700 }}>
+                <td className="name">Margen (%)</td>
+                {BRANCHES.map((b) => {
+                  const vc = valFor(year, b, 'valor_contratado');
+                  const ut = valFor(year, b, 'utilidad');
+                  return <td key={b}>{vc ? (ut / vc * 100).toFixed(1) + '%' : '—'}</td>;
+                })}
+                <td>{margen.toFixed(1)}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function ConsolidadosInner() {
   const { getIdToken } = useAuth();
@@ -100,6 +235,8 @@ function ConsolidadosInner() {
           {resultado && <button className="btn-outline" type="button" onClick={limpiarTodo}>Subir otro</button>}
         </div>
       </div>
+
+      <ResumenGeneral monthly={monthly} />
 
       {resultado && valores && (
         <>
