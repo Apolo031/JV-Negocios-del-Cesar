@@ -18,6 +18,7 @@ const ITEMS = [
   { href: '/reparaciones', label: 'Reparaciones' },
   { href: '/analisis', label: 'Análisis con IA' },
   { href: '/editar', label: 'Editar datos', adminOnly: true },
+  { href: '/consolidados', label: 'Consolidados', adminOnly: true },
   { href: '/alertas', label: 'Alertas' },
   { href: '/admin/usuarios', label: 'Usuarios', adminOnly: true },
   { href: '/cuenta', label: 'Mi cuenta' },
