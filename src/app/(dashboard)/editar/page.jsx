@@ -58,7 +58,7 @@ function calcularValoresItem(tipoEsperado, monthly, resultadoPdf, suc, an, mi, o
 function PanelPdfCaja({ tipoEsperado, branch, year }) {
   const info = TIPO_INFO[tipoEsperado];
   const { getIdToken } = useAuth();
-  const { monthly, saveMonthlyMetric } = useData();
+  const { monthly, saveMonthlyMetric, guardarCuadreDiario } = useData();
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [items, setItems] = useState([]); // { id, file, nombre, estado, error, resultado, sucursalSel, añoSel, mesIdx, valores, colapsado }
@@ -134,6 +134,20 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
           const arr = [...series(monthly, it.sucursalSel, it.añoSel, metric)];
           arr[it.mesIdx] = it.valores[metric];
           await saveMonthlyMetric(it.sucursalSel, it.añoSel, metric, arr);
+        }
+        // Además del acumulado del mes, se guarda el cuadre de ese día en su
+        // propia ficha (sucursal + fecha) para que "Seguimiento semanal"
+        // pueda agruparlos por semana. Se guardan los valores TAL COMO los
+        // extrajo el PDF (no la columna "a aplicar", que ya trae sumado el
+        // acumulado del mes) — si no, sumar varios días duplicaría el total.
+        // Si ya existía un cuadre para esa misma sucursal/fecha, lo
+        // reemplaza en vez de duplicarlo.
+        if (tipoEsperado === 'cuadre' && it.resultado.dia) {
+          const diaId = `${it.sucursalSel}_${it.añoSel}-${String(it.mesIdx + 1).padStart(2, '0')}-${String(it.resultado.dia).padStart(2, '0')}`;
+          await guardarCuadreDiario(diaId, {
+            sucursal: it.sucursalSel, anio: it.añoSel, mes: it.mesIdx + 1, dia: it.resultado.dia,
+            valores: it.resultado.valores, actualizadoEn: Date.now(),
+          });
         }
       }
       setMensaje(`Guardado: ${listos.length} archivo${listos.length === 1 ? '' : 's'}.`);

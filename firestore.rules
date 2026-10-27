@@ -52,6 +52,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Cuadres de caja diarios (uno por sucursal + fecha), que alimentan el
+    // seguimiento semanal. Se guardan desde el panel de "Cuadre de caja" en
+    // Editar datos, además de sumarse al mes correspondiente en /monthly.
+    match /cuadres_diarios/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Registros de publicidad (incluye rutas a fotos en Storage).
     match /publicidad/{docId} {
       allow read: if isSignedIn();

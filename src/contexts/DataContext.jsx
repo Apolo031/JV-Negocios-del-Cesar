@@ -18,6 +18,7 @@ export function DataProvider({ children }) {
   const [publicidad, setPublicidad] = useState([]);
   const [pendientes, setPendientes] = useState([]);
   const [reparaciones, setReparaciones] = useState([]);
+  const [cuadresDiarios, setCuadresDiarios] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,8 +54,12 @@ export function DataProvider({ children }) {
       setReparaciones(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubCuadres = onSnapshot(collection(db, 'cuadres_diarios'), (snap) => {
+      setCuadresDiarios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     setLoading(false);
-    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); unsubRep(); };
+    return () => { unsubMonthly(); unsubWeekly(); unsubPub(); unsubPend(); unsubRep(); unsubCuadres(); };
   }, [user]);
 
   /** Admin: sobreescribe un metric completo (los 12 meses) de una sucursal/año. */
@@ -95,12 +100,18 @@ export function DataProvider({ children }) {
   }, []);
   const deleteReparacion = useCallback(async (id) => deleteDoc(doc(db, 'reparaciones', id)), []);
 
+  /** Admin: guarda (o reemplaza) el cuadre de caja de una sucursal en una fecha puntual. */
+  const guardarCuadreDiario = useCallback(async (id, data) => {
+    await setDoc(doc(db, 'cuadres_diarios', id), data, { merge: true });
+  }, []);
+
   return (
     <DataContext.Provider value={{
-      monthly, weekly, publicidad, pendientes, reparaciones, loading,
+      monthly, weekly, publicidad, pendientes, reparaciones, cuadresDiarios, loading,
       saveMonthlyMetric, addPublicidad, deletePublicidad,
       addPendiente, togglePendiente, deletePendiente,
       addReparacion, updateReparacion, deleteReparacion,
+      guardarCuadreDiario,
     }}>
       {children}
     </DataContext.Provider>

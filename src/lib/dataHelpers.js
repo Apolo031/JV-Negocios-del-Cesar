@@ -63,6 +63,29 @@ export function sortWeekly(weekly) {
 export const EMPTY_MONTH_ARRAY = () => new Array(12).fill(0);
 export const EDIT_METRICS = ['gr_contrato','valor_contratado','utilidad','prorroga','venta_oro','valor_venta_oro','venta_plata','valor_venta_plata','operacion_efecty','operacion_sistecredito'];
 
+/** Lunes de la semana que contiene `anio/mes/dia` (semana Lunes–Domingo, hora local). */
+export function mondayOf(anio, mes, dia) {
+  const d = new Date(parseInt(anio, 10), mes - 1, dia);
+  const diaSemana = d.getDay(); // 0=domingo, 1=lunes, ... 6=sábado
+  const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+/** Clave ordenable de la semana (lunes en formato AAAA-MM-DD), para agrupar. */
+export function weekKey(anio, mes, dia) {
+  const m = mondayOf(anio, mes, dia);
+  return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-${String(m.getDate()).padStart(2, '0')}`;
+}
+/** "21 – 27 Oct 2026", a partir de la clave que arma weekKey(). */
+export function weekLabel(key) {
+  const [y, m, d] = key.split('-').map((n) => parseInt(n, 10));
+  const lunes = new Date(y, m - 1, d);
+  const domingo = new Date(lunes); domingo.setDate(domingo.getDate() + 6);
+  const mismoMes = lunes.getMonth() === domingo.getMonth();
+  const ini = mismoMes ? `${lunes.getDate()}` : `${lunes.getDate()} ${MONTH_NAMES[lunes.getMonth()]}`;
+  return `${ini} – ${domingo.getDate()} ${MONTH_NAMES[domingo.getMonth()]} ${domingo.getFullYear()}`;
+}
+
 export function fmtMoney(v) {
   if (v === null || v === undefined || isNaN(v)) return '—';
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
