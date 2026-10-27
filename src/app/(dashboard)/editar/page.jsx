@@ -10,7 +10,6 @@ import { BRANCHES, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL, fm
 // diario) — los dos últimos de EDIT_METRICS (recaudo Efecty/Sistecrédito)
 // no vienen en ninguno de los dos formatos todavía.
 const METRICAS_PDF = EDIT_METRICS.slice(0, 8);
-const AÑOS = ['2026', '2025'];
 
 const campoLabel = { fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 };
 
@@ -158,7 +157,6 @@ function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
             <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 10 }}>
               {tipoEsperado === 'cuadre' ? 'Cuadre de caja diario' : 'Consolidado del periodo'}
               {resultado.codigoDetectado && <> · Código detectado: <b>{resultado.codigoDetectado}</b></>}
-              {!(resultado.sucursal && BRANCHES.includes(resultado.sucursal)) && ' · no se reconoció la sucursal, elígela abajo'}
               {(() => {
                 const ini = fechaStr(resultado.dia, resultado.mes, resultado.anio);
                 const fin = fechaStr(resultado.diaFin, resultado.mesFin, resultado.anioFin);
@@ -175,26 +173,27 @@ function PanelPdfCaja({ tipoEsperado, branch, year, monthly, onAplicar }) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div>
-                <div style={campoLabel}>Sucursal</div>
-                <select value={sucursalSel} onChange={(e) => { const v = e.target.value; setSucursalSel(v); recomputar(resultado, v, añoSel, mesIdx); }}>
-                  {BRANCHES.map((b) => <option key={b}>{b}</option>)}
-                </select>
+            {resultado.sucursal && BRANCHES.includes(resultado.sucursal) ? (
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={campoLabel}>Sucursal</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{sucursalSel}</div>
+                </div>
+                <div>
+                  <div style={campoLabel}>Año</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{añoSel}</div>
+                </div>
+                <div>
+                  <div style={campoLabel}>Mes</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>{MONTH_NAMES_FULL[mesIdx]}</div>
+                </div>
               </div>
-              <div>
-                <div style={campoLabel}>Año</div>
-                <select value={añoSel} onChange={(e) => { const v = e.target.value; setAñoSel(v); recomputar(resultado, sucursalSel, v, mesIdx); }}>
-                  {AÑOS.map((a) => <option key={a}>{a}</option>)}
-                </select>
+            ) : (
+              <div className="login-error" style={{ marginBottom: 4 }}>
+                No se reconoció la sucursal en el PDF — se va a aplicar a <b>{sucursalSel}</b> (la que está seleccionada arriba).
+                Si no es la correcta, cambia la sucursal en el selector de arriba y vuelve a darle "Extraer datos".
               </div>
-              <div>
-                <div style={campoLabel}>Mes</div>
-                <select value={mesIdx} onChange={(e) => { const v = parseInt(e.target.value, 10); setMesIdx(v); recomputar(resultado, sucursalSel, añoSel, v); }}>
-                  {MONTH_NAMES_FULL.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                </select>
-              </div>
-            </div>
+            )}
           </div>
 
           <div style={{ overflowX: 'auto', marginTop: 14 }}>
