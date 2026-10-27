@@ -11,3 +11,13 @@ import CSSMatrix from '@thednp/dommatrix';
 if (typeof globalThis.DOMMatrix === 'undefined') {
   globalThis.DOMMatrix = CSSMatrix;
 }
+
+// pdfjs-dist intenta montar su "worker" con un `import()` dinámico marcado
+// como `webpackIgnore` (para que, en el navegador, sea el navegador quien lo
+// resuelva) — pero eso significa que el empaquetador de Next nunca lo ve, y
+// Vercel no lo incluye en la función serverless ("Cannot find module
+// .../pdf.worker.mjs"). Si nosotros mismos importamos ese archivo de forma
+// normal y lo dejamos en `globalThis.pdfjsWorker`, pdfjs-dist lo usa
+// directo sin pasar por ese import dinámico.
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+globalThis.pdfjsWorker = pdfjsWorker;
