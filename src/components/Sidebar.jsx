@@ -7,9 +7,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const ITEMS = [
   { href: '/', label: 'Resumen general' },
-  { href: '/comparativo', label: 'Comparativo sucursales' },
-  { href: '/detalle', label: 'Detalle por sucursal' },
-  { href: '/semanal', label: 'Seguimiento semanal' },
   { href: '/publicidad', label: 'Publicidad y pendientes' },
   { href: '/contratos', label: 'Contratos' },
   { href: '/facturas', label: 'Facturas (R+R)' },
