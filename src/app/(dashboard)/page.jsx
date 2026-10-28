@@ -15,12 +15,15 @@ export default function ResumenPage() {
   const [mesIndividual, setMesIndividual] = useState(null); // null = usa el último mes con datos
   const [trendMetric, setTrendMetric] = useState('utilidad');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [sucursal, setSucursal] = useState('Todas'); // 'Todas' o el nombre de una sucursal puntual
 
   const lastM = useMemo(() => lastActiveMonth2026(monthly), [monthly]);
   const mesSel = mesIndividual === null ? lastM : mesIndividual;
   const isMes = period === 'mes';
   const year = period === '2025' ? '2025' : '2026';
   const upto = period === '2025' ? 12 : lastM + 1;
+  const soloUnaSucursal = sucursal !== 'Todas';
+  const branchesToShow = soloUnaSucursal ? [sucursal] : BRANCHES;
 
   // Valor de un concepto para una sucursal en el periodo elegido: si es "Un
   // mes" se toma solo ese mes puntual (no acumulado); si no, se acumula
@@ -29,8 +32,17 @@ export default function ResumenPage() {
   function valFor(y, branch, metric) {
     return isMes ? (series(monthly, branch, y, metric)[mesSel] || 0) : totalFor(monthly, branch, y, metric, upto);
   }
+  // Si hay una sucursal puntual elegida arriba, todo el resumen (KPIs, mezcla
+  // del negocio, tendencia, etc.) se filtra a esa sola sucursal en vez de
+  // sumar las 6.
   function valAllFor(y, metric) {
-    return BRANCHES.reduce((s, b) => s + valFor(y, b, metric), 0);
+    return soloUnaSucursal ? valFor(y, sucursal, metric) : BRANCHES.reduce((s, b) => s + valFor(y, b, metric), 0);
+  }
+  function serieScoped(y, metric) {
+    return soloUnaSucursal ? series(monthly, sucursal, y, metric) : sumSeries(monthly, y, metric);
+  }
+  function totalScoped(y, metric, uptoN) {
+    return soloUnaSucursal ? totalFor(monthly, sucursal, y, metric, uptoN) : totalAll(monthly, y, metric, uptoN);
   }
 
   async function handleDownloadPdf() {
@@ -74,17 +86,21 @@ export default function ResumenPage() {
 
   const periodoLabel = period === '2025' ? '2025, año completo' : (isMes ? `${MONTH_NAMES_FULL[mesSel]} 2026` : `2026, Ene–${MONTH_NAMES[lastM]}`);
 
-  const s25 = sumSeries(monthly, '2025', trendMetric);
-  const s26 = sumSeries(monthly, '2026', trendMetric).map((v, i) => (i <= lastM ? v : null));
+  const s25 = serieScoped('2025', trendMetric);
+  const s26 = serieScoped('2026', trendMetric).map((v, i) => (i <= lastM ? v : null));
 
   return (
     <div>
       <div className="topbar">
         <div>
           <h1>Resumen general</h1>
-          <p>Consolidado de las joyerías</p>
+          <p>{soloUnaSucursal ? `Sucursal: ${sucursal}` : 'Consolidado de las joyerías'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={sucursal} onChange={(e) => setSucursal(e.target.value)} title="Ver por sucursal">
+            <option value="Todas">Todas las sucursales</option>
+            {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
           <div className="btn-group">
             <button className={`btn-toggle${period === 'ytd' ? ' active' : ''}`} onClick={() => setPeriod('ytd')}>
               Año en curso (Ene–{MONTH_NAMES[lastM]})
@@ -140,7 +156,7 @@ export default function ResumenPage() {
 
       <div className="panel">
         <div className="panel-head">
-          <h3>Resultados por sucursal — todos los conceptos</h3>
+          <h3>{soloUnaSucursal ? `Resultados — ${sucursal}` : 'Resultados por sucursal — todos los conceptos'}</h3>
           <span className="hint">{periodoLabel}</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -148,47 +164,33 @@ export default function ResumenPage() {
             <thead>
               <tr>
                 <th style={{ textAlign: 'left' }}>Concepto</th>
-                {BRANCHES.map((b) => <th key={b}>{b}</th>)}
-                <th>Total</th>
+                {branchesToShow.map((b) => <th key={b}>{b}</th>)}
+                {!soloUnaSucursal && <th>Total</th>}
               </tr>
             </thead>
             <tbody>
               {ALL_METRICS.map((metric) => (
                 <tr key={metric}>
                   <td className="name">{METRIC_LABEL[metric]}</td>
-                  {BRANCHES.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
-                  <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, valAllFor(year, metric))}</td>
+                  {branchesToShow.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
+                  {!soloUnaSucursal && <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, valAllFor(year, metric))}</td>}
                 </tr>
               ))}
               <tr style={{ fontWeight: 700 }}>
                 <td className="name">Margen (%)</td>
-                {BRANCHES.map((b) => {
+                {branchesToShow.map((b) => {
                   const vc = valFor(year, b, 'valor_contratado');
                   const ut = valFor(year, b, 'utilidad');
                   return <td key={b}>{vc ? (ut / vc * 100).toFixed(1) + '%' : '—'}</td>;
                 })}
-                <td>{margen.toFixed(1)}%</td>
+                {!soloUnaSucursal && <td>{margen.toFixed(1)}%</td>}
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <div className="grid-2">
-        <div className="panel">
-          <div className="panel-head">
-            <h3>Ranking de utilidad por sucursal</h3>
-            <span className="hint">{periodoLabel}</span>
-          </div>
-          {rankUtilidad.map((r, idx) => (
-            <div className="ingot-row" key={r.b}>
-              <div className="ingot-rank">{idx + 1}</div>
-              <div className="ingot-name">{r.b}</div>
-              <div className="ingot-track"><div className="ingot-fill" style={{ width: `${Math.max(3, (r.v / maxUtilidad) * 100)}%` }} /></div>
-              <div className="ingot-value">{fmtMoneyShort(r.v)}</div>
-            </div>
-          ))}
-        </div>
+      {soloUnaSucursal ? (
         <div className="panel">
           <div className="panel-head">
             <h3>Mezcla del negocio</h3>
@@ -208,25 +210,63 @@ export default function ResumenPage() {
             ))}
           </div>
         </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-head">
-          <h3>Gramos en contrato por sucursal</h3>
-          <span className="hint">{periodoLabel}</span>
-        </div>
-        {rankGramos.map((r, idx) => (
-          <div className="ingot-row" key={r.b}>
-            <div className="ingot-rank">{idx + 1}</div>
-            <div className="ingot-name">{r.b}</div>
-            <div className="ingot-track"><div className="ingot-fill" style={{ width: `${Math.max(3, (r.v / maxGramos) * 100)}%` }} /></div>
-            <div className="ingot-value">{fmtGr(r.v)}{totalGramosRank ? ` · ${((r.v / totalGramosRank) * 100).toFixed(0)}%` : ''}</div>
+      ) : (
+        <>
+          <div className="grid-2">
+            <div className="panel">
+              <div className="panel-head">
+                <h3>Ranking de utilidad por sucursal</h3>
+                <span className="hint">{periodoLabel}</span>
+              </div>
+              {rankUtilidad.map((r, idx) => (
+                <div className="ingot-row" key={r.b}>
+                  <div className="ingot-rank">{idx + 1}</div>
+                  <div className="ingot-name">{r.b}</div>
+                  <div className="ingot-track"><div className="ingot-fill" style={{ width: `${Math.max(3, (r.v / maxUtilidad) * 100)}%` }} /></div>
+                  <div className="ingot-value">{fmtMoneyShort(r.v)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="panel">
+              <div className="panel-head">
+                <h3>Mezcla del negocio</h3>
+                <span className="hint">{periodoLabel}</span>
+              </div>
+              <ChartCanvas
+                height={230}
+                config={{
+                  type: 'doughnut',
+                  data: { labels: mixParts.map((p) => p.k), datasets: [{ data: mixParts.map((p) => p.v), backgroundColor: mixParts.map((p) => p.c), borderColor: '#1a2029', borderWidth: 2 }] },
+                  options: { cutout: '68%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.label + ': ' + fmtMoney(c.raw) } } } },
+                }}
+              />
+              <div className="legend-row">
+                {mixParts.map((p) => (
+                  <div className="legend-item" key={p.k}><span className="sw" style={{ background: p.c }} />{p.k} · {fmtMoneyShort(p.v)}</div>
+                ))}
+              </div>
+            </div>
           </div>
-        ))}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6, fontSize: 12, color: 'var(--text-dim)' }}>
-          Total: <b style={{ color: 'var(--gold-light)', marginLeft: 5 }}>{fmtGr(totalGramosRank)}</b>
-        </div>
-      </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Gramos en contrato por sucursal</h3>
+              <span className="hint">{periodoLabel}</span>
+            </div>
+            {rankGramos.map((r, idx) => (
+              <div className="ingot-row" key={r.b}>
+                <div className="ingot-rank">{idx + 1}</div>
+                <div className="ingot-name">{r.b}</div>
+                <div className="ingot-track"><div className="ingot-fill" style={{ width: `${Math.max(3, (r.v / maxGramos) * 100)}%` }} /></div>
+                <div className="ingot-value">{fmtGr(r.v)}{totalGramosRank ? ` · ${((r.v / totalGramosRank) * 100).toFixed(0)}%` : ''}</div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6, fontSize: 12, color: 'var(--text-dim)' }}>
+              Total: <b style={{ color: 'var(--gold-light)', marginLeft: 5 }}>{fmtGr(totalGramosRank)}</b>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="panel">
         <div className="panel-head">
@@ -252,7 +292,7 @@ export default function ResumenPage() {
       </div>
 
       <div className="panel">
-        <div className="panel-head"><h3>Consolidado mensual {year}{period !== '2025' ? ` (Ene–${MONTH_NAMES[lastM]})` : ' (año completo)'}</h3></div>
+        <div className="panel-head"><h3>Consolidado mensual {year}{period !== '2025' ? ` (Ene–${MONTH_NAMES[lastM]})` : ' (año completo)'} {soloUnaSucursal ? `· ${sucursal}` : ''}</h3></div>
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead>
@@ -260,11 +300,11 @@ export default function ResumenPage() {
             </thead>
             <tbody>
               {Array.from({ length: upto }).map((_, m) => {
-                const vc = sumSeries(monthly, year, 'valor_contratado')[m];
-                const ut = sumSeries(monthly, year, 'utilidad')[m];
-                const gr = sumSeries(monthly, year, 'gr_contrato')[m];
-                const vo = sumSeries(monthly, year, 'valor_venta_oro')[m];
-                const pr = sumSeries(monthly, year, 'prorroga')[m];
+                const vc = serieScoped(year, 'valor_contratado')[m];
+                const ut = serieScoped(year, 'utilidad')[m];
+                const gr = serieScoped(year, 'gr_contrato')[m];
+                const vo = serieScoped(year, 'valor_venta_oro')[m];
+                const pr = serieScoped(year, 'prorroga')[m];
                 const mg = vc ? (ut / vc) * 100 : 0;
                 return (
                   <tr key={m}>
@@ -277,17 +317,17 @@ export default function ResumenPage() {
               {(() => {
                 // Esta tabla siempre muestra el acumulado Ene-upto completo
                 // (independiente de si arriba se eligió "Un mes"), así que su
-                // fila de Total se calcula aparte con totalAll puro.
-                const totalContratadoAcum = totalAll(monthly, year, 'valor_contratado', upto);
-                const totalUtilidadAcum = totalAll(monthly, year, 'utilidad', upto);
-                const totalGramosAcum = totalAll(monthly, year, 'gr_contrato', upto);
+                // fila de Total se calcula aparte con totalScoped puro.
+                const totalContratadoAcum = totalScoped(year, 'valor_contratado', upto);
+                const totalUtilidadAcum = totalScoped(year, 'utilidad', upto);
+                const totalGramosAcum = totalScoped(year, 'gr_contrato', upto);
                 const margenAcum = totalContratadoAcum ? (totalUtilidadAcum / totalContratadoAcum) * 100 : 0;
                 return (
                   <tr style={{ fontWeight: 700 }}>
                     <td className="name">Total</td>
                     <td>{fmtMoney(totalContratadoAcum)}</td><td>{fmtMoney(totalUtilidadAcum)}</td><td>{margenAcum.toFixed(1)}%</td>
-                    <td>{fmtGr(totalGramosAcum)}</td><td>{fmtMoney(totalAll(monthly, year, 'valor_venta_oro', upto))}</td>
-                    <td>{fmtMoney(totalAll(monthly, year, 'prorroga', upto))}</td>
+                    <td>{fmtGr(totalGramosAcum)}</td><td>{fmtMoney(totalScoped(year, 'valor_venta_oro', upto))}</td>
+                    <td>{fmtMoney(totalScoped(year, 'prorroga', upto))}</td>
                   </tr>
                 );
               })()}
