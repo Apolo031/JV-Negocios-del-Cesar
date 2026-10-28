@@ -60,7 +60,8 @@ function totalesDeSeccion(lines, encabezados) {
 
 const BRANCH_KEYWORDS = [
   ['BARRANQUILLA', 'Barranquilla'], ['CAUCASIA', 'Caucasia'], ['EURO', 'Euro'],
-  ['HEROICA', 'Heroica'], ['SINU', 'Sinú'], ['LA 5', 'La 5'], ['LA5', 'La 5'],
+  ['HEROICA', 'Heroica'], ['SINU', 'Sinú'],
+  ['LA QUINTA', 'La Quinta'], ['LA 5', 'La Quinta'], ['LA5', 'La Quinta'],
 ];
 
 function detectarSucursalYCodigo(lines) {

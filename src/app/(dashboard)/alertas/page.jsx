@@ -6,7 +6,7 @@ import {
   series, totalFor, lastActiveMonth2026,
 } from '@/lib/dataHelpers';
 
-const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
+const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La Quinta': 'La Quinta' };
 
 function buildAlerts(monthly, weekly) {
   const alerts = [];

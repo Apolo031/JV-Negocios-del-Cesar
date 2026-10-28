@@ -12,7 +12,7 @@ import {
   totalFor, totalAll, lastActiveMonth2026, parseFechaSemanal, series,
 } from './dataHelpers';
 
-const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La 5': 'La 5' };
+const WEEK_BRANCH_KEY = { Barranquilla: 'Barranquillera', Caucasia: 'Caucasia', Euro: 'Euro', Heroica: 'Heroica', Sinú: 'Sinú', 'La Quinta': 'La Quinta' };
 
 const GOLD = [199, 163, 57];
 const DARK = [26, 32, 41];

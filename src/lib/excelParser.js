@@ -21,8 +21,8 @@ const SHEET_BRANCH_MAP = {
   HEROICA: 'Heroica',
   SINU: 'Sinú',
   SINÚ: 'Sinú',
-  'LA 5': 'La 5',
-  LA5: 'La 5',
+  'LA 5': 'La Quinta',
+  LA5: 'La Quinta',
 };
 
 /** Accede a una celda como openpyxl: cell(grid, fila, columna) con índices 1-based. */
@@ -73,7 +73,7 @@ export function parseMonthly(workbook) {
   return monthly;
 }
 
-const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, Sinú: 14, 'La 5': 17 };
+const WEEK_BRANCH_COLS = { Barranquillera: 2, Caucasia: 5, Euro: 8, Heroica: 11, Sinú: 14, 'La Quinta': 17 };
 // La fecha del reporte se escribe en la hoja siempre en la columna de la
 // última sucursal (justo encima de su nombre) — así que al agregar una
 // sucursal nueva, la fecha se corre con ella en vez de quedar en una
