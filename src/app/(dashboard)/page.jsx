@@ -296,7 +296,7 @@ export default function ResumenPage() {
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead>
-              <tr><th style={{ textAlign: 'left' }}>Mes</th><th>Valor contratado</th><th>Utilidad</th><th>Margen</th><th>Gramos</th><th>Venta oro ($)</th><th>Prórrogas</th></tr>
+              <tr><th style={{ textAlign: 'left' }}>Mes</th><th>Valor contratado</th><th>Utilidad</th><th>Prórrogas</th><th>Promedio</th><th>Margen</th><th>Gramos</th><th>Venta oro ($)</th></tr>
             </thead>
             <tbody>
               {Array.from({ length: upto }).map((_, m) => {
@@ -306,11 +306,12 @@ export default function ResumenPage() {
                 const vo = serieScoped(year, 'valor_venta_oro')[m];
                 const pr = serieScoped(year, 'prorroga')[m];
                 const mg = vc ? (ut / vc) * 100 : 0;
+                const prom = gr ? vc / gr : 0;
                 return (
                   <tr key={m}>
                     <td className="name">{MONTH_NAMES_FULL[m]}</td>
-                    <td>{fmtMoney(vc)}</td><td>{fmtMoney(ut)}</td><td>{mg.toFixed(1)}%</td>
-                    <td>{fmtGr(gr)}</td><td>{fmtMoney(vo)}</td><td>{fmtMoney(pr)}</td>
+                    <td>{fmtMoney(vc)}</td><td>{fmtMoney(ut)}</td><td>{fmtMoney(pr)}</td><td>{gr ? fmtMoney(prom) : '—'}</td>
+                    <td>{mg.toFixed(1)}%</td><td>{fmtGr(gr)}</td><td>{fmtMoney(vo)}</td>
                   </tr>
                 );
               })}
@@ -321,13 +322,15 @@ export default function ResumenPage() {
                 const totalContratadoAcum = totalScoped(year, 'valor_contratado', upto);
                 const totalUtilidadAcum = totalScoped(year, 'utilidad', upto);
                 const totalGramosAcum = totalScoped(year, 'gr_contrato', upto);
+                const totalProrrogaAcum = totalScoped(year, 'prorroga', upto);
                 const margenAcum = totalContratadoAcum ? (totalUtilidadAcum / totalContratadoAcum) * 100 : 0;
+                const promAcum = totalGramosAcum ? totalContratadoAcum / totalGramosAcum : 0;
                 return (
                   <tr style={{ fontWeight: 700 }}>
                     <td className="name">Total</td>
-                    <td>{fmtMoney(totalContratadoAcum)}</td><td>{fmtMoney(totalUtilidadAcum)}</td><td>{margenAcum.toFixed(1)}%</td>
-                    <td>{fmtGr(totalGramosAcum)}</td><td>{fmtMoney(totalScoped(year, 'valor_venta_oro', upto))}</td>
-                    <td>{fmtMoney(totalScoped(year, 'prorroga', upto))}</td>
+                    <td>{fmtMoney(totalContratadoAcum)}</td><td>{fmtMoney(totalUtilidadAcum)}</td><td>{fmtMoney(totalProrrogaAcum)}</td>
+                    <td>{totalGramosAcum ? fmtMoney(promAcum) : '—'}</td>
+                    <td>{margenAcum.toFixed(1)}%</td><td>{fmtGr(totalGramosAcum)}</td><td>{fmtMoney(totalScoped(year, 'valor_venta_oro', upto))}</td>
                   </tr>
                 );
               })()}
