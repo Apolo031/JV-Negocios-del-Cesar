@@ -11,11 +11,11 @@ export const METRIC_LABEL = {
   gr_contrato: 'Gramos en contrato', valor_contratado: 'Valor contratado', utilidad: 'Utilidad',
   prorroga: 'Prórrogas', venta_oro: 'Venta de oro (g)', valor_venta_oro: 'Venta de oro ($)',
   venta_plata: 'Venta de plata (g)', valor_venta_plata: 'Venta de plata ($)',
-  operacion_efecty: 'Recaudo Efecty', cantidad_efecty: 'Operaciones Efecty',
-  operacion_sistecredito: 'Recaudo Sistecrédito', cantidad_sistecredito: 'Operaciones Sistecrédito',
+  operacion_efecty: 'Recaudo Efecty', operacion_sistecredito: 'Recaudo Sistecrédito',
 };
-// Los 12 conceptos tal como están en la hoja de Excel de cada sucursal, en el
-// mismo orden — para tablas que deben mostrar "todos los items" sin elegir.
+// Los conceptos de la hoja de Excel de cada sucursal que sí se muestran en
+// las tablas de "todos los items" — sin "Operaciones Efecty/Sistecrédito"
+// (cantidad_efecty/cantidad_sistecredito), que nunca llegan con datos reales.
 export const ALL_METRICS = Object.keys(METRIC_LABEL);
 function stripAccents(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
