@@ -77,6 +77,14 @@ body{
 }
 .nav-item.disabled{opacity:.35; pointer-events:none;}
 
+.nav-section{margin-top:18px; padding-top:14px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:6px;}
+.nav-section:first-of-type{margin-top:0; padding-top:0; border-top:none;}
+.nav-section-title{
+  font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--text-dimmer); padding:0 12px 2px;
+}
+.nav-item .nav-icon{width:18px; text-align:center; flex-shrink:0; font-size:13px;}
+
 .sidebar-foot{
   margin-top:auto; padding:12px; border-radius:10px; background:var(--surface); border:1px solid var(--border);
   font-size:11.5px; color:var(--text-dimmer); line-height:1.5;

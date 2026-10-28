@@ -5,20 +5,40 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const ITEMS = [
-  { href: '/', label: 'Resumen general' },
-  { href: '/publicidad', label: 'Publicidad y pendientes' },
-  { href: '/contratos', label: 'Contratos' },
-  { href: '/facturas', label: 'Facturas (R+R)' },
-  { href: '/inventario', label: 'Inventario' },
-  { href: '/identificar-joya', label: 'Identificar joya' },
-  { href: '/reparaciones', label: 'Reparaciones' },
-  { href: '/analisis', label: 'Análisis con IA' },
-  { href: '/editar', label: 'Editar datos', adminOnly: true },
-  { href: '/seguimiento-semanal', label: 'Seguimiento semanal' },
-  { href: '/alertas', label: 'Alertas' },
-  { href: '/admin/usuarios', label: 'Usuarios', adminOnly: true },
-  { href: '/cuenta', label: 'Mi cuenta' },
+const SECTIONS = [
+  {
+    title: 'Dashboard y gestión general',
+    items: [
+      { href: '/', label: 'Resumen general', icon: '📊' },
+      { href: '/seguimiento-semanal', label: 'Seguimiento semanal', icon: '📈' },
+      { href: '/alertas', label: 'Alertas', icon: '🔔' },
+    ],
+  },
+  {
+    title: 'Operaciones y comercial',
+    items: [
+      { href: '/contratos', label: 'Contratos', icon: '📜' },
+      { href: '/facturas', label: 'Facturas (R+R)', icon: '🧾' },
+      { href: '/inventario', label: 'Inventario', icon: '💎' },
+      { href: '/reparaciones', label: 'Reparaciones', icon: '🔧' },
+      { href: '/identificar-joya', label: 'Identificar joya', icon: '🔍' },
+      { href: '/publicidad', label: 'Publicidad y pendientes', icon: '📣' },
+    ],
+  },
+  {
+    title: 'Inteligencia y análisis',
+    items: [
+      { href: '/analisis', label: 'Análisis con IA', icon: '🤖' },
+    ],
+  },
+  {
+    title: 'Administración y configuración',
+    items: [
+      { href: '/admin/usuarios', label: 'Usuarios', icon: '👥', adminOnly: true },
+      { href: '/editar', label: 'Editar datos', icon: '⚙️', adminOnly: true },
+      { href: '/cuenta', label: 'Mi cuenta', icon: '👤' },
+    ],
+  },
 ];
 
 export default function Sidebar({ open, onNavigate, onClose }) {
@@ -62,13 +82,22 @@ export default function Sidebar({ open, onNavigate, onClose }) {
         </div>
       </div>
 
-      {ITEMS.map((item) => {
-        if (item.adminOnly && !isAdmin) return null;
-        const active = pathname === item.href;
+      {SECTIONS.map((section) => {
+        const visibles = section.items.filter((item) => !item.adminOnly || isAdmin);
+        if (visibles.length === 0) return null;
         return (
-          <Link key={item.href} href={item.href} className={`nav-item${active ? ' active' : ''}`} onClick={onNavigate}>
-            {item.label}
-          </Link>
+          <div className="nav-section" key={section.title}>
+            <div className="nav-section-title">{section.title}</div>
+            {visibles.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link key={item.href} href={item.href} className={`nav-item${active ? ' active' : ''}`} onClick={onNavigate}>
+                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         );
       })}
 
