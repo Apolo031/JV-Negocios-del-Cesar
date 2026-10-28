@@ -138,15 +138,43 @@ const HEADERS_CUADRE = {
 };
 
 /**
- * Parsea el texto plano del PDF (todas las páginas concatenadas), detecta
- * de cuál de los dos reportes se trata y devuelve los indicadores que
- * alimentan "Editar datos", más el detalle que los respalda para mostrarlo
- * en la revisión antes de guardar. `tipo` es null si no se reconoció
- * ninguno de los dos formatos.
+ * Un mismo PDF puede traer VARIOS periodos seguidos (ej. un consolidado por
+ * cada mes del año, uno detrás de otro). Cada página repite, al final, el
+ * mismo renglón "Fecha inicio: ... Fecha fin: ..." del periodo al que
+ * pertenece — por eso ese renglón aparece 2 o 3 veces seguidas (una por
+ * página) con el mismo texto, y cambia de valor justo donde empieza el
+ * siguiente periodo. Esta función corta `lines` en un bloque por cada
+ * periodo distinto, usando la ÚLTIMA aparición de cada racha de renglones
+ * idénticos como el final de su bloque.
  */
-export function parseCajaPdfText(text) {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+function dividirEnPeriodos(lines) {
+  const marcas = [];
+  lines.forEach((l, i) => { if (l.startsWith('Fecha inicio:')) marcas.push({ idx: i, valor: l }); });
+  if (marcas.length === 0) return [lines]; // no se reconoce ningún periodo: tratar todo como un solo bloque
 
+  const finales = [];
+  marcas.forEach((m, i) => {
+    const esUltimoDeLaRacha = i === marcas.length - 1 || marcas[i + 1].valor !== m.valor;
+    if (esUltimoDeLaRacha) finales.push(m.idx);
+  });
+
+  const bloques = [];
+  let inicio = 0;
+  finales.forEach((finIdx) => {
+    bloques.push(lines.slice(inicio, finIdx + 1));
+    inicio = finIdx + 1;
+  });
+  if (inicio < lines.length) {
+    // Lo que quede después del último "Fecha inicio" (normalmente nada) se
+    // añade al bloque anterior en vez de perderse.
+    if (bloques.length > 0) bloques[bloques.length - 1] = bloques[bloques.length - 1].concat(lines.slice(inicio));
+    else bloques.push(lines.slice(inicio));
+  }
+  return bloques;
+}
+
+/** Parsea un solo bloque (un periodo) ya aislado del resto del PDF. */
+function parseBloque(lines) {
   let tipo = null;
   if (lines.some((l) => l.includes('MOVIMIENTOS DE CAJA CONSOLIDADOS'))) tipo = 'consolidado';
   else if (lines.some((l) => l.includes('CUADRE DE CAJA'))) tipo = 'cuadre';
@@ -157,4 +185,19 @@ export function parseCajaPdfText(text) {
   const { valores, detalle } = extraerIndicadores(lines, headers);
 
   return { tipo, sucursal, dia, mes, anio, diaFin, mesFin, anioFin, multiMes, codigoDetectado, valores, detalle };
+}
+
+/**
+ * Parsea el texto plano del PDF (todas las páginas concatenadas). Si el
+ * archivo trae varios periodos seguidos (ej. un consolidado por mes), los
+ * separa y devuelve un resultado por cada uno en `resultados`; si no
+ * reconoce ningún periodo del todo, `resultados` queda vacío. Cada
+ * resultado trae los indicadores que alimentan "Editar datos" más el
+ * detalle que los respalda para mostrarlo en la revisión antes de guardar.
+ */
+export function parseCajaPdfText(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const bloques = dividirEnPeriodos(lines);
+  const resultados = bloques.map(parseBloque).filter((r) => r.tipo);
+  return { resultados };
 }

@@ -113,15 +113,36 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
         const res = await fetch('/api/parse-caja-pdf', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'No se pudo leer el PDF');
-        if (data.tipo !== tipoEsperado) {
-          throw new Error(`Este PDF parece ser de ${TIPO_INFO[data.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[data.tipo]?.titulo || info.nombreOtro}".`);
+
+        // Un mismo PDF puede traer varios periodos seguidos (ej. un
+        // consolidado por cada mes del año) — cada uno se revisa y se
+        // guarda por separado, como si fuera su propio archivo.
+        const resultados = data.resultados || [];
+        const coinciden = resultados.filter((r) => r.tipo === tipoEsperado);
+        if (coinciden.length === 0) {
+          const otro = resultados[0];
+          throw new Error(`Este PDF parece ser de ${TIPO_INFO[otro?.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[otro?.tipo]?.titulo || info.nombreOtro}".`);
         }
-        const suc = data.sucursal && BRANCHES.includes(data.sucursal) ? data.sucursal : branch;
-        const an = data.anio || year;
-        const mi = data.mes ? data.mes - 1 : 0;
-        setItems((prev) => prev.map((x) => (x.id === it.id
-          ? { ...x, estado: 'listo', resultado: data, sucursalSel: suc, añoSel: an, mesIdx: mi, valores: { ...data.valores } }
-          : x)));
+
+        const nuevosItems = coinciden.map((r) => {
+          const suc = r.sucursal && BRANCHES.includes(r.sucursal) ? r.sucursal : branch;
+          const an = r.anio || year;
+          const mi = r.mes ? r.mes - 1 : 0;
+          const etiquetaPeriodo = tipoEsperado === 'cuadre'
+            ? (r.dia ? `Día ${fechaStr(r.dia, mi + 1, an)}` : '')
+            : `${MONTH_NAMES_FULL[mi]} ${an}`;
+          return {
+            id: nextId(),
+            nombre: coinciden.length > 1 ? `${it.nombre} · ${etiquetaPeriodo}` : it.nombre,
+            estado: 'listo', resultado: r, sucursalSel: suc, añoSel: an, mesIdx: mi, valores: { ...r.valores }, colapsado: false,
+          };
+        });
+
+        setItems((prev) => {
+          const idx = prev.findIndex((x) => x.id === it.id);
+          if (idx === -1) return prev;
+          return [...prev.slice(0, idx), ...nuevosItems, ...prev.slice(idx + 1)];
+        });
       } catch (err) {
         setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, estado: 'error', error: err.message } : x)));
       }
