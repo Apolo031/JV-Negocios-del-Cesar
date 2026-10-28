@@ -169,7 +169,27 @@ export default function ResumenPage() {
               </tr>
             </thead>
             <tbody>
-              {ALL_METRICS.map((metric) => (
+              {ALL_METRICS.slice(0, 4).map((metric) => (
+                <tr key={metric}>
+                  <td className="name">{METRIC_LABEL[metric]}</td>
+                  {branchesToShow.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
+                  {!soloUnaSucursal && <td style={{ fontWeight: 700 }}>{fmtConcepto(metric, valAllFor(year, metric))}</td>}
+                </tr>
+              ))}
+              <tr>
+                <td className="name">Promedio (valor contratado / gramos)</td>
+                {branchesToShow.map((b) => {
+                  const vc = valFor(year, b, 'valor_contratado');
+                  const gr = valFor(year, b, 'gr_contrato');
+                  return <td key={b}>{gr ? fmtMoney(vc / gr) : '—'}</td>;
+                })}
+                {!soloUnaSucursal && (() => {
+                  const vc = valAllFor(year, 'valor_contratado');
+                  const gr = valAllFor(year, 'gr_contrato');
+                  return <td style={{ fontWeight: 700 }}>{gr ? fmtMoney(vc / gr) : '—'}</td>;
+                })()}
+              </tr>
+              {ALL_METRICS.slice(4).map((metric) => (
                 <tr key={metric}>
                   <td className="name">{METRIC_LABEL[metric]}</td>
                   {branchesToShow.map((b) => <td key={b}>{fmtConcepto(metric, valFor(year, b, metric))}</td>)}
