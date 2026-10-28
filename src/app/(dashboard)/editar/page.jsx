@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import RequireAdmin from '@/components/RequireAdmin';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { BRANCHES, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL, fmtByMetric, series } from '@/lib/dataHelpers';
+import { BRANCHES, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL, isMoney, series } from '@/lib/dataHelpers';
 
 // Los 8 indicadores que traen los PDF de caja (consolidado mensual o cuadre
 // diario) — los dos últimos de EDIT_METRICS (recaudo Efecty/Sistecrédito)
@@ -12,6 +12,18 @@ import { BRANCHES, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES, MONTH_NAMES_FULL, fm
 const METRICAS_PDF = EDIT_METRICS.slice(0, 8);
 
 const campoLabel = { fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 };
+
+// Para la revisión del PDF, a diferencia del resto del panel (que redondea
+// a pesos enteros para que sea más fácil de leer), se muestra el número tal
+// como está en el PDF — con sus centavos y decimales reales — para que se
+// pueda comparar cifra por cifra contra el documento original.
+function fmtExacto(metric, v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  const texto = v.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  if (isMoney(metric)) return `$ ${texto}`;
+  if (metric === 'gr_contrato' || metric === 'venta_oro' || metric === 'venta_plata') return `${texto} g`;
+  return texto;
+}
 
 function fechaStr(dia, mes, anio) {
   if (!dia || !mes || !anio) return null;
@@ -263,8 +275,8 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
                       return (
                         <tr key={metric}>
                           <td className="name">{METRIC_LABEL[metric]}</td>
-                          <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, actual)}</td>
-                          <td style={{ color: 'var(--text-dim)' }}>{fmtByMetric(metric, extraido)}</td>
+                          <td style={{ color: 'var(--text-dim)' }}>{fmtExacto(metric, actual)}</td>
+                          <td style={{ color: 'var(--text-dim)' }}>{fmtExacto(metric, extraido)}</td>
                           <td>
                             <input
                               type="number" step="any"
