@@ -59,7 +59,7 @@ function totalesDeSeccion(lines, encabezados) {
 }
 
 const BRANCH_KEYWORDS = [
-  ['BARRANQUILLA', 'Barranquilla'], ['CAUCASIA', 'Caucasia'], ['EURO', 'Euro'],
+  ['BARRANQUILLERA', 'Barranquilla'], ['BARRANQUILLA', 'Barranquilla'], ['CAUCASIA', 'Caucasia'], ['EURO', 'Euro'],
   ['HEROICA', 'Heroica'], ['SINU', 'Sinú'],
   ['LA QUINTA', 'La Quinta'], ['LA 5', 'La Quinta'], ['LA5', 'La Quinta'],
 ];
