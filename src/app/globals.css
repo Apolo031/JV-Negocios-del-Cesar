@@ -81,8 +81,14 @@ body{
 .nav-section:first-of-type{margin-top:0; padding-top:0; border-top:none;}
 .nav-section-title{
   font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
-  color:var(--text-dimmer); padding:0 12px 2px;
+  color:var(--text-dimmer); padding:4px 12px; margin:0 -4px 2px;
+  background:none; border:none; cursor:pointer; width:100%;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  font-family:inherit; border-radius:6px; transition:color .15s, background .15s;
 }
+.nav-section-title:hover{color:var(--text-dim); background:var(--surface);}
+.nav-chevron{display:inline-block; transition:transform .15s; font-size:10px;}
+.nav-chevron.collapsed{transform:rotate(-90deg);}
 .nav-item .nav-icon{width:18px; text-align:center; flex-shrink:0; font-size:13px;}
 
 .sidebar-foot{

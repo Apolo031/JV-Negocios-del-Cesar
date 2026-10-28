@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,15 @@ export default function Sidebar({ open, onNavigate, onClose }) {
   const pathname = usePathname();
   const { user, isAdmin, role, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [colapsadas, setColapsadas] = useState(() => new Set()); // todas empiezan desplegadas
+
+  function toggleSeccion(title) {
+    setColapsadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title); else next.add(title);
+      return next;
+    });
+  }
 
   return (
     <div className={`sidebar${open ? ' open' : ''}`}>
@@ -85,10 +95,19 @@ export default function Sidebar({ open, onNavigate, onClose }) {
       {SECTIONS.map((section) => {
         const visibles = section.items.filter((item) => !item.adminOnly || isAdmin);
         if (visibles.length === 0) return null;
+        const colapsada = colapsadas.has(section.title);
         return (
           <div className="nav-section" key={section.title}>
-            <div className="nav-section-title">{section.title}</div>
-            {visibles.map((item) => {
+            <button
+              type="button"
+              className="nav-section-title"
+              onClick={() => toggleSeccion(section.title)}
+              aria-expanded={!colapsada}
+            >
+              <span>{section.title}</span>
+              <span className={`nav-chevron${colapsada ? ' collapsed' : ''}`} aria-hidden="true">▾</span>
+            </button>
+            {!colapsada && visibles.map((item) => {
               const active = pathname === item.href;
               return (
                 <Link key={item.href} href={item.href} className={`nav-item${active ? ' active' : ''}`} onClick={onNavigate}>
