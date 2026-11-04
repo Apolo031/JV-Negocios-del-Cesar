@@ -98,22 +98,35 @@ function ImportarContratos({ onImported }) {
         throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la columna "Contrato Secuencia").');
       }
 
+      // Cada importación REEMPLAZA toda la cartera anterior (se sube un
+      // informe distinto cada mes, no es un acumulado histórico): primero se
+      // borra todo lo que había.
+      setProgress({ etapa: 'borrando', done: 0, total: 0 });
+      const existentes = await getDocs(collection(db, 'contratos'));
+      const refsABorrar = existentes.docs.map((d) => d.ref);
+      let borrados = 0;
+      for (let i = 0; i < refsABorrar.length; i += WRITE_CHUNK) {
+        const slice = refsABorrar.slice(i, i + WRITE_CHUNK);
+        const batch = writeBatch(db);
+        for (const ref of slice) batch.delete(ref);
+        await batch.commit();
+        borrados += slice.length;
+        setProgress({ etapa: 'borrando', done: borrados, total: refsABorrar.length });
+      }
+
       let done = 0;
       for (let i = 0; i < contratos.length; i += WRITE_CHUNK) {
         const slice = contratos.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const contrato of slice) {
-          // merge:true — un archivo con menos columnas (p. ej. uno sin
-          // Sociedad/Jefe de Zona) no debe borrar lo que ya se había cargado
-          // de otro archivo que sí las traía.
-          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato, { merge: true });
+          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato);
         }
         await batch.commit();
         done += slice.length;
-        setProgress({ done, total: contratos.length });
+        setProgress({ etapa: 'cargando', done, total: contratos.length });
       }
 
-      setResult({ count: contratos.length });
+      setResult({ count: contratos.length, borrados: refsABorrar.length });
       setFile(null);
       onImported?.();
     } catch (err) {
@@ -126,20 +139,30 @@ function ImportarContratos({ onImported }) {
 
   return (
     <div className="panel">
-      <div className="panel-head"><h3>Importar contratos</h3></div>
+      <div className="panel-head"><h3>Importar informe de contratos</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-        Sube el archivo de contratos (Excel o CSV) con las columnas de siempre: Cod joyería, Departamento,
-        Ciudad, Zona, Fecha Inicio, Porcentaje Retroventa, Contrato Secuencia, Fecha Terminación, etc.
-        Cada contrato se identifica por su <b>Contrato Secuencia</b> — si ya existe, se actualiza con lo nuevo.
+        Sube cada mes el "INFORME CONTRATOS" (hoja <b>REPORT CONTRATOS</b>) en Excel o CSV.
+        <b> Esto reemplaza toda la cartera que había antes</b> — no se acumula entre meses, cada
+        importación deja solo lo que trae el archivo de ese mes.
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setFile(e.target.files[0] || null)} style={{ fontSize: 12, color: 'var(--text-dim)' }} />
         <button className="btn" onClick={handleImport} disabled={importing || !file}>
-          {importing ? (progress ? `Importando… (${progress.done}/${progress.total})` : 'Leyendo archivo…') : 'Importar archivo'}
+          {importing
+            ? !progress
+              ? 'Leyendo archivo…'
+              : progress.etapa === 'borrando'
+                ? `Borrando cartera anterior… (${progress.done}/${progress.total})`
+                : `Cargando… (${progress.done}/${progress.total})`
+            : 'Reemplazar con este archivo'}
         </button>
       </div>
       {error && <div className="login-error">{error}</div>}
-      {result && <div style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 12 }}>Listo: se cargaron {result.count} contratos.</div>}
+      {result && (
+        <div style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 12 }}>
+          Listo: se borraron {result.borrados} contratos anteriores y se cargaron {result.count} nuevos.
+        </div>
+      )}
     </div>
   );
 }
