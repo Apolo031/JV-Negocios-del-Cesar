@@ -1,200 +1,156 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { fmtMoney, fmtPct, fmtGr } from '@/lib/dataHelpers';
+import { fmtMoney, fmtGr } from '@/lib/dataHelpers';
 import { parseContratosBuffer } from '@/lib/contratosParser';
+import { computeAggregates } from '@/lib/contratosAggregates';
+import { generateContratosReportPdf } from '@/lib/contratosPdf';
 
-const PAGE_SIZE = 50;
+const RESUMEN_PATH = ['contratos_resumen', 'actual'];
+const LOCK_PATH = ['meta', 'importLock'];
+const LOCK_STALE_MS = 20 * 60 * 1000; // una traba más vieja que esto se ignora (proceso que murió sin soltarla)
 
-function fmtFecha(s) {
-  if (!s) return '—';
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return s;
-  const rest = s.slice(10).trim();
-  return `${m[3]}/${m[2]}/${m[1]}${rest ? ' ' + rest : ''}`;
+function fmtFechaHora(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('es-CO');
 }
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00');
-  if (isNaN(d)) return null;
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  return Math.round((d - hoy) / (1000 * 60 * 60 * 24));
+// Estado de la importación, FUERA de React a propósito: el componente se
+// desmonta cada vez que se cambia de menú (la pantalla de progreso
+// desaparece), pero el proceso en sí no se detiene solo por eso — así que el
+// estado vive aquí para poder seguir viéndolo sin importar a qué página del
+// panel se navegue mientras corre.
+let importSnapshot = { running: false, etapa: null, result: null, error: '', fileName: '' };
+const importListeners = new Set();
+function setImportSnapshot(patch) {
+  importSnapshot = { ...importSnapshot, ...patch };
+  importListeners.forEach((fn) => fn());
+}
+function subscribeImport(fn) {
+  importListeners.add(fn);
+  return () => importListeners.delete(fn);
+}
+function getImportSnapshot() {
+  return importSnapshot;
 }
 
-function uniqueSorted(list) {
-  return [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+// Candado en Firestore (no solo en este navegador): evita que dos
+// importaciones corran a la vez aunque una la lance un script del servidor y
+// la otra la lance alguien desde la pantalla.
+async function acquireImportLock(by) {
+  const ref = doc(db, ...LOCK_PATH);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : null;
+  if (data?.running && Date.now() - (data.startedAt || 0) < LOCK_STALE_MS) {
+    const hace = Math.round((Date.now() - data.startedAt) / 60000);
+    throw new Error(`Ya hay una importación en curso (la empezó ${data.by || 'alguien'} hace ${hace} min). Espera a que termine antes de lanzar otra.`);
+  }
+  await setDoc(ref, { running: true, startedAt: Date.now(), by });
+}
+async function releaseImportLock() {
+  await setDoc(doc(db, ...LOCK_PATH), { running: false, startedAt: Date.now() }, { merge: true });
 }
 
-// "Joyeria" trae "<código>-<sociedad>" (ej. "013-EFECTIVA", "498-CAUCASIA");
-// la sociedad es el nombre después del guion, sin el código.
-function sociedadOf(joyeria) {
-  const s = String(joyeria || '').replace(/^\d+-\s*/, '').trim();
-  return s || joyeria || '';
-}
+async function runImport(file, onImported, by) {
+  if (importSnapshot.running) return; // ya hay una importación en curso en este navegador
+  setImportSnapshot({ running: true, etapa: 'leyendo', result: null, error: '', fileName: file.name });
+  try {
+    await acquireImportLock(by);
+    // El archivo se procesa aquí mismo en el navegador (igual que "Editar
+    // datos") — así no pasa por ninguna API route y no choca con el límite
+    // de subida de Vercel (~4.5MB), que un Excel grande de contratos supera
+    // fácilmente.
+    const buffer = await file.arrayBuffer();
+    const contratos = parseContratosBuffer(buffer);
+    if (contratos.length === 0) {
+      throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la columna "Contrato Secuencia").');
+    }
 
-// Prefiere el nombre real de "Sociedad" (del informe de contratos); si el
-// contrato no lo trae (se cargó de un archivo viejo que no tenía esa
-// columna), cae al nombre derivado de la Joyería.
-function sociedadReal(c) {
-  return c.sociedad || sociedadOf(c.joyeria);
-}
+    // No se guarda una fila por contrato (eso es lo que agotaba la cuota de
+    // lecturas/escrituras de Firestore con 100k+ filas cada mes) — se
+    // calculan los indicadores aquí mismo y se guarda solo ese resumen, que
+    // es lo único que el panel necesita mostrar.
+    setImportSnapshot({ etapa: 'calculando' });
+    const aggregates = computeAggregates(contratos);
 
-// Mismos rangos de valor que trae el informe de contratos (hoja "CATEGORIAS").
-const RANGOS_VALOR = [
-  { desde: 0, hasta: 999999, label: 'Hasta $999.999' },
-  { desde: 1000000, hasta: 1999999, label: '$1.000.000 – $1.999.999' },
-  { desde: 2000000, hasta: 2999999, label: '$2.000.000 – $2.999.999' },
-  { desde: 3000000, hasta: 4999999, label: '$3.000.000 – $4.999.999' },
-  { desde: 5000000, hasta: 9999999, label: '$5.000.000 – $9.999.999' },
-  { desde: 10000000, hasta: 29999999, label: '$10.000.000 – $29.999.999' },
-  { desde: 30000000, hasta: Infinity, label: '$30.000.000 o más' },
-];
+    setImportSnapshot({ etapa: 'guardando' });
+    await setDoc(doc(db, ...RESUMEN_PATH), {
+      generadoEn: Date.now(),
+      archivo: file.name,
+      totalContratosArchivo: contratos.length,
+      ...aggregates,
+    });
 
-// "Contrato Termino" usa la misma columna para dos unidades distintas: los
-// contratos de venta directa están a 15 días (no 15 meses), y el resto de
-// valores (1, 3, 4, 6...) sí son meses. Se distingue por el valor exacto 15.
-function tipoPlazo(termino) {
-  if (termino === 15) return 'Venta directa (15 días)';
-  return `A término (${termino} ${termino === 1 ? 'mes' : 'meses'})`;
+    setImportSnapshot({ running: false, result: { count: contratos.length } });
+    await releaseImportLock();
+    onImported?.();
+  } catch (err) {
+    setImportSnapshot({ running: false, error: err.message });
+    // Si el error fue porque ya había una importación en curso, esa traba es
+    // de la OTRA importación — no hay que soltarla, sigue corriendo.
+    if (!err.message?.startsWith('Ya hay una importación en curso')) {
+      await releaseImportLock().catch(() => {});
+    }
+  }
 }
-const ORDEN_PLAZO = [15, 1, 3, 4, 6];
-function ordenPlazo(termino) {
-  const i = ORDEN_PLAZO.indexOf(termino);
-  return i === -1 ? ORDEN_PLAZO.length + termino : i;
-}
-
-const WRITE_CHUNK = 450; // Firestore permite máximo 500 operaciones por batch.
 
 function ImportarContratos({ onImported }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [file, setFile] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
-  const [cancelling, setCancelling] = useState(false);
-  const cancelRef = useRef(false);
+  const status = useSyncExternalStore(subscribeImport, getImportSnapshot, getImportSnapshot);
+  const wasRunning = useRef(status.running);
+
+  useEffect(() => {
+    // Si esta pantalla se vuelve a montar (el usuario navegó y volvió) justo
+    // cuando una importación termina, refresca igual.
+    if (wasRunning.current && !status.running) onImported?.();
+    wasRunning.current = status.running;
+  }, [status.running, onImported]);
 
   if (!isAdmin) return null;
 
-  function handleCancel() {
-    cancelRef.current = true;
-    setCancelling(true);
+  function handleImport() {
+    if (!file) return;
+    runImport(file, onImported, user?.email || 'navegador');
+    setFile(null);
   }
 
-  async function handleImport() {
-    if (!file) { setError('Elige primero un archivo .xlsx, .xls o .csv'); return; }
-    cancelRef.current = false;
-    setCancelling(false);
-    setImporting(true);
-    setError('');
-    setResult(null);
-    setProgress(null);
-    try {
-      // El archivo se procesa aquí mismo en el navegador y se escribe
-      // directo a Firestore (igual que "Editar datos") — así no pasa por
-      // ninguna API route y no choca con el límite de tamaño de subida de
-      // Vercel para funciones serverless (~4.5MB), que un Excel grande de
-      // contratos supera fácilmente.
-      const buffer = await file.arrayBuffer();
-      const contratos = parseContratosBuffer(buffer);
-      if (contratos.length === 0) {
-        throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la columna "Contrato Secuencia").');
-      }
-
-      // Cada importación REEMPLAZA toda la cartera anterior (se sube un
-      // informe distinto cada mes, no es un acumulado histórico): primero se
-      // borra todo lo que había.
-      setProgress({ etapa: 'borrando', done: 0, total: 0 });
-      const existentes = await getDocs(collection(db, 'contratos'));
-      const refsABorrar = existentes.docs.map((d) => d.ref);
-      let borrados = 0;
-      for (let i = 0; i < refsABorrar.length; i += WRITE_CHUNK) {
-        if (cancelRef.current) {
-          setResult({ cancelado: true, borrados, count: 0 });
-          onImported?.();
-          return;
-        }
-        const slice = refsABorrar.slice(i, i + WRITE_CHUNK);
-        const batch = writeBatch(db);
-        for (const ref of slice) batch.delete(ref);
-        await batch.commit();
-        borrados += slice.length;
-        setProgress({ etapa: 'borrando', done: borrados, total: refsABorrar.length });
-      }
-
-      let done = 0;
-      for (let i = 0; i < contratos.length; i += WRITE_CHUNK) {
-        if (cancelRef.current) {
-          setResult({ cancelado: true, borrados: refsABorrar.length, count: done });
-          onImported?.();
-          return;
-        }
-        const slice = contratos.slice(i, i + WRITE_CHUNK);
-        const batch = writeBatch(db);
-        for (const contrato of slice) {
-          // ID autogenerado: dos filas del archivo pueden traer la misma
-          // Contrato Secuencia repetida (no es un identificador único de
-          // verdad) y como cada importación reemplaza todo, no hace falta
-          // una clave estable — así no se pierde ninguna fila por chocar.
-          batch.set(doc(collection(db, 'contratos')), contrato);
-        }
-        await batch.commit();
-        done += slice.length;
-        setProgress({ etapa: 'cargando', done, total: contratos.length });
-      }
-
-      setResult({ count: contratos.length, borrados: refsABorrar.length });
-      setFile(null);
-      onImported?.();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setImporting(false);
-      setProgress(null);
-    }
-  }
+  const etapaLabel = { leyendo: 'Leyendo archivo…', calculando: 'Calculando indicadores…', guardando: 'Guardando…' };
 
   return (
     <div className="panel">
       <div className="panel-head"><h3>Importar informe de contratos</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
         Sube cada mes el "INFORME CONTRATOS" (hoja <b>REPORT CONTRATOS</b>) en Excel o CSV.
-        <b> Esto reemplaza toda la cartera que había antes</b> — no se acumula entre meses, cada
-        importación deja solo lo que trae el archivo de ese mes.
+        Se calculan los indicadores y <b>reemplazan al informe anterior</b> — no se guarda cada
+        contrato por separado, solo los resúmenes que ves abajo. El proceso sigue aunque cambies de
+        menú.
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setFile(e.target.files[0] || null)} style={{ fontSize: 12, color: 'var(--text-dim)' }} />
-        <button className="btn" onClick={handleImport} disabled={importing || !file}>
-          {importing
-            ? !progress
-              ? 'Leyendo archivo…'
-              : progress.etapa === 'borrando'
-                ? `Borrando cartera anterior… (${progress.done}/${progress.total})`
-                : `Cargando… (${progress.done}/${progress.total})`
-            : 'Reemplazar con este archivo'}
+        <input
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={(e) => setFile(e.target.files[0] || null)}
+          disabled={status.running}
+          style={{ fontSize: 12, color: 'var(--text-dim)' }}
+        />
+        <button className="btn" onClick={handleImport} disabled={status.running || !file}>
+          {status.running ? (etapaLabel[status.etapa] || 'Importando…') : 'Reemplazar con este archivo'}
         </button>
-        {importing && progress && (
-          <button className="btn-outline" type="button" onClick={handleCancel} disabled={cancelling}>
-            {cancelling ? 'Cancelando…' : 'Cancelar'}
-          </button>
-        )}
       </div>
-      {error && <div className="login-error">{error}</div>}
-      {result && result.cancelado && (
-        <div style={{ fontSize: 12.5, color: 'var(--gold-light)', marginTop: 12 }}>
-          Cancelado: quedó a medias (se borraron {result.borrados} y se alcanzaron a cargar {result.count}).
-          La cartera no está completa hasta que vuelvas a importar el archivo sin cancelar.
+      {status.running && (
+        <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 8 }}>
+          Importando {status.fileName} — puedes seguir navegando el panel, esto no se detiene.
         </div>
       )}
-      {result && !result.cancelado && (
+      {status.error && <div className="login-error">{status.error}</div>}
+      {status.result && (
         <div style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 12 }}>
-          Listo: se borraron {result.borrados} contratos anteriores y se cargaron {result.count} nuevos.
+          Listo: se calcularon los indicadores de {status.result.count} contratos.
         </div>
       )}
     </div>
@@ -202,190 +158,126 @@ function ImportarContratos({ onImported }) {
 }
 
 export default function ContratosPage() {
-  const [contratos, setContratos] = useState([]);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
+  const [rangoCategoria, setRangoCategoria] = useState('todas');
 
-  const [fCiudad, setFCiudad] = useState('__ALL__');
-  const [fZona, setFZona] = useState('__ALL__');
-  const [fSociedad, setFSociedad] = useState('__ALL__');
-  const [fEstado, setFEstado] = useState('__ALL__');
-  const [fCategoria, setFCategoria] = useState('__ALL__');
-  const [fRetroMin, setFRetroMin] = useState('');
-  const [fRetroMax, setFRetroMax] = useState('');
-  const [fDesde, setFDesde] = useState('');
-  const [fHasta, setFHasta] = useState('');
-  const [fBusqueda, setFBusqueda] = useState('');
-
-  async function loadContratos() {
+  async function loadResumen() {
     setLoading(true);
     setError('');
     try {
-      const snap = await getDocs(collection(db, 'contratos'));
-      setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const snap = await getDoc(doc(db, ...RESUMEN_PATH));
+      setData(snap.exists() ? snap.data() : null);
     } catch (err) {
-      setError('No se pudieron cargar los contratos: ' + err.message);
+      setError('No se pudo cargar el informe: ' + err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadContratos(); }, []);
+  useEffect(() => { loadResumen(); }, []);
 
-  const ciudades = useMemo(() => uniqueSorted(contratos.map((c) => c.ciudad)), [contratos]);
-  const zonas = useMemo(() => uniqueSorted(contratos.map((c) => c.zona)), [contratos]);
-  const sociedades = useMemo(() => uniqueSorted(contratos.map((c) => sociedadOf(c.joyeria))), [contratos]);
-  const estados = useMemo(() => uniqueSorted(contratos.map((c) => c.contratoEstado)), [contratos]);
-  const categorias = useMemo(() => uniqueSorted(contratos.map((c) => c.contratoCategoria)), [contratos]);
-
-  const filtrados = useMemo(() => {
-    const retroMin = fRetroMin === '' ? -Infinity : parseFloat(fRetroMin);
-    const retroMax = fRetroMax === '' ? Infinity : parseFloat(fRetroMax);
-    const busq = fBusqueda.trim().toLowerCase();
-    return contratos.filter((c) => {
-      if (fCiudad !== '__ALL__' && c.ciudad !== fCiudad) return false;
-      if (fZona !== '__ALL__' && c.zona !== fZona) return false;
-      if (fSociedad !== '__ALL__' && sociedadOf(c.joyeria) !== fSociedad) return false;
-      if (fEstado !== '__ALL__' && c.contratoEstado !== fEstado) return false;
-      if (fCategoria !== '__ALL__' && c.contratoCategoria !== fCategoria) return false;
-      if ((c.porcentajeRetroventa || 0) < retroMin || (c.porcentajeRetroventa || 0) > retroMax) return false;
-      if (fDesde && (!c.fechaInicio || c.fechaInicio.slice(0, 10) < fDesde)) return false;
-      if (fHasta && (!c.fechaInicio || c.fechaInicio.slice(0, 10) > fHasta)) return false;
-      if (busq && !`${c.cliente} ${c.documentoCliente} ${c.contratoSecuencia}`.toLowerCase().includes(busq)) return false;
-      return true;
-    });
-  }, [contratos, fCiudad, fZona, fSociedad, fEstado, fCategoria, fRetroMin, fRetroMax, fDesde, fHasta, fBusqueda]);
-
-  const kpis = useMemo(() => {
-    const total = filtrados.length;
-    const valorTotal = filtrados.reduce((s, c) => s + (c.contratoValor || 0), 0);
-    const retroProm = total ? filtrados.reduce((s, c) => s + (c.porcentajeRetroventa || 0), 0) / total : 0;
-    const vencidos = filtrados.filter((c) => { const d = daysUntil(c.fechaTerminacion); return d !== null && d < 0; }).length;
-    const porVencer = filtrados.filter((c) => { const d = daysUntil(c.fechaTerminacion); return d !== null && d >= 0 && d <= 30; }).length;
-    return { total, valorTotal, retroProm, vencidos, porVencer };
-  }, [filtrados]);
-
-  const vencimientosPorPlazo = useMemo(() => {
-    const grupos = {};
-    for (const c of filtrados) {
-      const termino = c.contratoTermino;
-      const key = tipoPlazo(termino);
-      if (!grupos[key]) grupos[key] = { label: key, termino, total: 0, vencidos: 0, porVencer: 0, alDia: 0 };
-      const g = grupos[key];
-      g.total++;
-      const d = daysUntil(c.fechaTerminacion);
-      if (d !== null && d < 0) g.vencidos++;
-      else if (d !== null && d <= 30) g.porVencer++;
-      else g.alDia++;
-    }
-    return Object.values(grupos).sort((a, b) => ordenPlazo(a.termino) - ordenPlazo(b.termino));
-  }, [filtrados]);
-
-  const resumenSociedad = useMemo(() => {
-    const grupos = {};
-    for (const c of filtrados) {
-      const key = sociedadReal(c) || '(sin sociedad)';
-      if (!grupos[key]) grupos[key] = { sociedad: key, contratos: 0, valorTotal: 0, gramosOro: 0, valorOro: 0 };
-      const g = grupos[key];
-      g.contratos++;
-      g.valorTotal += c.contratoValor || 0;
-      if (c.contratoCategoria === 'ORO') {
-        g.gramosOro += c.contratoGramosEstimados || 0;
-        g.valorOro += c.contratoValor || 0;
-      }
-    }
-    return Object.values(grupos).sort((a, b) => b.valorTotal - a.valorTotal);
-  }, [filtrados]);
-
-  const resumenJoyeria = useMemo(() => {
-    const grupos = {};
-    for (const c of filtrados) {
-      const key = c.joyeria || '(sin joyería)';
-      if (!grupos[key]) grupos[key] = { joyeria: key, sociedad: sociedadReal(c), ciudad: c.ciudad, contratos: 0, valorTotal: 0, gramosOro: 0, valorOro: 0 };
-      const g = grupos[key];
-      g.contratos++;
-      g.valorTotal += c.contratoValor || 0;
-      if (c.contratoCategoria === 'ORO') {
-        g.gramosOro += c.contratoGramosEstimados || 0;
-        g.valorOro += c.contratoValor || 0;
-      }
-    }
-    return Object.values(grupos).sort((a, b) => b.valorTotal - a.valorTotal);
-  }, [filtrados]);
-
-  const [rangoCategoria, setRangoCategoria] = useState('todas');
-
-  const resumenRangoValor = useMemo(() => {
-    const base = rangoCategoria === 'oro' ? filtrados.filter((c) => c.contratoCategoria === 'ORO') : filtrados;
-    const totalContratos = base.length;
-    const totalValor = base.reduce((s, c) => s + (c.contratoValor || 0), 0);
-    const totalGramos = base.reduce((s, c) => s + (c.contratoGramosEstimados || 0), 0);
-    const buckets = RANGOS_VALOR.map((r) => ({ ...r, contratos: 0, valor: 0, gramos: 0 }));
-    for (const c of base) {
-      const v = c.contratoValor || 0;
-      const b = buckets.find((x) => v >= x.desde && v <= x.hasta) || buckets[buckets.length - 1];
-      b.contratos++;
-      b.valor += v;
-      b.gramos += c.contratoGramosEstimados || 0;
-    }
-    return { buckets, totalContratos, totalValor, totalGramos };
-  }, [filtrados, rangoCategoria]);
-
-  const pageCount = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, pageCount);
-  const pageItems = filtrados.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
-
-  function limpiarFiltros() {
-    setFCiudad('__ALL__'); setFZona('__ALL__'); setFSociedad('__ALL__'); setFEstado('__ALL__'); setFCategoria('__ALL__');
-    setFRetroMin(''); setFRetroMax(''); setFDesde(''); setFHasta(''); setFBusqueda('');
-    setPage(1);
+  function handleDownloadPdf() {
+    if (!data) return;
+    generateContratosReportPdf(data, { archivo: data.archivo, generadoEn: data.generadoEn });
   }
 
-  function handleExportExcel() {
-    const rows = filtrados.map((c) => ({
-      'Cod Joyería': c.codJoyeria, Departamento: c.departamento, Ciudad: c.ciudad, Zona: c.zona,
-      'Fecha Inicio': c.fechaInicio, '% Retroventa': c.porcentajeRetroventa, Categoría: c.contratoCategoria,
-      Secuencia: c.contratoSecuencia, Joyería: c.joyeria, Sociedad: sociedadOf(c.joyeria), 'Fecha Terminación': c.fechaTerminacion,
-      'Gramos Estimados': c.contratoGramosEstimados, 'Gramos Totales': c.contratoGramosTotales,
-      Valor: c.contratoValor, 'Valor Mes': c.contratoValorMes, 'Término (meses)': c.contratoTermino,
-      'Meses Adeudados': c.mesesAdeudados, 'Documento Cliente': c.documentoCliente, Cliente: c.cliente,
-      'Fecha Retroventa': c.fechaRetroventa, 'Fecha Resolución': c.fechaResolucion, 'Creado Por': c.creadoPor,
-      Estado: c.contratoEstado, Motivo: c.contratoMotivo, Teléfono: c.clienteTelefono, 'Días Gracia': c.diasGracia,
-      Dirección: c.clienteDireccion, 'Fecha Operación': c.fechaOperacion, 'Meses Pagados': c.mesesPagados,
-      'Valor Retroventa': c.valorRetroventa,
-    }));
+  function handleDownloadExcel() {
+    if (!data) return;
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Contratos');
-    XLSX.writeFile(wb, `contratos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+      { Indicador: 'Contratos', Valor: data.kpis.totalContratos },
+      { Indicador: 'Valor contratado', Valor: data.kpis.valorTotal },
+      { Indicador: '% Retroventa promedio', Valor: data.kpis.retroProm },
+      { Indicador: 'Vencidos', Valor: data.kpis.vencidos },
+      { Indicador: 'Por vencer (30d)', Valor: data.kpis.porVencer },
+    ]), 'KPIs');
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      data.vencimientosPorPlazo.map((g) => ({
+        'Tipo de plazo': g.label, Total: g.total, 'Al día': g.alDia, 'Por vencer (30d)': g.porVencer, Vencidos: g.vencidos,
+      }))
+    ), 'Por plazo');
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      data.porSociedad.map((s) => ({
+        Sociedad: s.sociedad, Contratos: s.contratos, 'Valor total': s.valorTotal,
+        'Gramos oro': s.gramosOro, 'Valor oro': s.valorOro, '$/gramo': s.gramosOro ? s.valorOro / s.gramosOro : '',
+      }))
+    ), 'Por sociedad');
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      data.porSucursal.map((j) => ({
+        Sucursal: j.joyeria, Sociedad: j.sociedad, Ciudad: j.ciudad, Contratos: j.contratos,
+        'Valor total': j.valorTotal, 'Gramos oro': j.gramosOro, 'Valor oro': j.valorOro,
+        '$/gramo': j.gramosOro ? j.valorOro / j.gramosOro : '',
+      }))
+    ), 'Por sucursal');
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      data.porRangoValorTodas.buckets.map((b) => ({ Rango: b.label, Contratos: b.contratos, Valor: b.valor }))
+    ), 'Rango de valor');
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      data.porCategoria.map((c) => ({ Categoría: c.categoria, Contratos: c.count, Valor: c.valor, Gramos: c.gramos }))
+    ), 'Por categoría');
+
+    XLSX.writeFile(wb, `informe-contratos-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
+
+  const rango = rangoCategoria === 'oro' ? data?.porRangoValorOro : data?.porRangoValorTodas;
 
   return (
     <div>
       <div className="topbar">
-        <div><h1>Contratos</h1><p>Contratos de préstamo sobre oro — % de retroventa, vigencia y estado</p></div>
-        <button className="btn-outline" type="button" onClick={loadContratos} disabled={loading}>
+        <div>
+          <h1>Contratos</h1>
+          <p>
+            Indicadores del informe de contratos — % de retroventa, vigencia y estado.
+            {data ? ` Datos de "${data.archivo}", generado el ${fmtFechaHora(data.generadoEn)}.` : ''}
+          </p>
+        </div>
+        <button className="btn-outline" type="button" onClick={loadResumen} disabled={loading}>
           {loading ? 'Cargando…' : '↻ Actualizar'}
         </button>
       </div>
 
       {error && <div className="login-error">{error}</div>}
 
-      <ImportarContratos onImported={loadContratos} />
+      <ImportarContratos onImported={loadResumen} />
 
       {loading ? (
         <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>
-      ) : contratos.length === 0 ? (
-        <div className="empty-note">Todavía no hay contratos cargados. Impórtalos arriba.</div>
+      ) : !data ? (
+        <div className="empty-note">Todavía no hay ningún informe importado. Súbelo arriba.</div>
       ) : (
         <>
           <div className="kpi-row">
-            <div className="kpi"><div className="label">Contratos (filtro actual)</div><div className="value">{kpis.total}</div></div>
-            <div className="kpi"><div className="label">Valor contratado</div><div className="value">{fmtMoney(kpis.valorTotal)}</div></div>
-            <div className="kpi"><div className="label">% Retroventa promedio</div><div className="value">{fmtPct(kpis.retroProm).replace('+', '')}</div></div>
+            <div className="kpi"><div className="label">Contratos</div><div className="value">{data.kpis.totalContratos.toLocaleString('es-CO')}</div></div>
+            <div className="kpi"><div className="label">Valor contratado</div><div className="value">{fmtMoney(data.kpis.valorTotal)}</div></div>
+            <div className="kpi"><div className="label">% Retroventa promedio</div><div className="value">{data.kpis.retroProm.toFixed(1)}%</div></div>
             <div className="kpi">
               <div className="label">Vencidos / por vencer (30d)</div>
-              <div className="value" style={{ color: kpis.vencidos > 0 ? 'var(--red)' : undefined }}>{kpis.vencidos} / {kpis.porVencer}</div>
+              <div className="value" style={{ color: data.kpis.vencidos > 0 ? 'var(--red)' : undefined }}>
+                {data.kpis.vencidos.toLocaleString('es-CO')} / {data.kpis.porVencer.toLocaleString('es-CO')}
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Informe descargable</h3>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn-outline" type="button" onClick={handleDownloadPdf}>⭳ Descargar PDF</button>
+                <button className="btn-outline" type="button" onClick={handleDownloadExcel}>⭳ Descargar Excel</button>
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+              El PDF trae los mismos indicadores de esta pantalla listos para imprimir o enviar; el
+              Excel trae cada resumen en su propia hoja (KPIs, por plazo, por sociedad, por sucursal,
+              rango de valor, por categoría).
             </div>
           </div>
 
@@ -400,7 +292,7 @@ export default function ContratosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {vencimientosPorPlazo.map((g) => (
+                  {data.vencimientosPorPlazo.map((g) => (
                     <tr key={g.label}>
                       <td className="name">{g.label}</td>
                       <td>{g.total}</td>
@@ -425,7 +317,7 @@ export default function ContratosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resumenSociedad.map((s) => (
+                  {data.porSociedad.map((s) => (
                     <tr key={s.sociedad}>
                       <td className="name">{s.sociedad}</td>
                       <td>{s.contratos}</td>
@@ -443,7 +335,7 @@ export default function ContratosPage() {
           <div className="panel">
             <div className="panel-head">
               <h3>Resumen por sucursal</h3>
-              <span className="hint">{resumenJoyeria.length} sucursales</span>
+              <span className="hint">{data.porSucursal.length} sucursales</span>
             </div>
             <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
               <table>
@@ -455,7 +347,7 @@ export default function ContratosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resumenJoyeria.map((j) => (
+                  {data.porSucursal.map((j) => (
                     <tr key={j.joyeria}>
                       <td className="name">{j.joyeria}</td>
                       <td>{j.sociedad}</td>
@@ -491,22 +383,22 @@ export default function ContratosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resumenRangoValor.buckets.map((b) => (
+                  {rango.buckets.map((b) => (
                     <tr key={b.label}>
                       <td className="name">{b.label}</td>
                       <td>{b.contratos}</td>
-                      <td>{fmtPct(resumenRangoValor.totalContratos ? (b.contratos / resumenRangoValor.totalContratos) * 100 : 0).replace('+', '')}</td>
+                      <td>{(rango.totalContratos ? (b.contratos / rango.totalContratos) * 100 : 0).toFixed(1)}%</td>
                       {rangoCategoria === 'oro' && <td>{fmtGr(b.gramos)}</td>}
                       <td>{fmtMoney(b.valor)}</td>
-                      <td>{fmtPct(resumenRangoValor.totalValor ? (b.valor / resumenRangoValor.totalValor) * 100 : 0).replace('+', '')}</td>
+                      <td>{(rango.totalValor ? (b.valor / rango.totalValor) * 100 : 0).toFixed(1)}%</td>
                     </tr>
                   ))}
                   <tr style={{ fontWeight: 700 }}>
                     <td className="name">Total general</td>
-                    <td>{resumenRangoValor.totalContratos}</td>
+                    <td>{rango.totalContratos}</td>
                     <td>100.0%</td>
-                    {rangoCategoria === 'oro' && <td>{fmtGr(resumenRangoValor.totalGramos)}</td>}
-                    <td>{fmtMoney(resumenRangoValor.totalValor)}</td>
+                    {rangoCategoria === 'oro' && <td>{fmtGr(rango.totalGramos)}</td>}
+                    <td>{fmtMoney(rango.totalValor)}</td>
                     <td>100.0%</td>
                   </tr>
                 </tbody>
@@ -515,116 +407,44 @@ export default function ContratosPage() {
           </div>
 
           <div className="panel">
-            <div className="panel-head">
-              <h3>Filtros</h3>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>
-                <button className="btn-outline" type="button" onClick={handleExportExcel} disabled={filtrados.length === 0}>⭳ Descargar Excel</button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Ciudad</div>
-                <select value={fCiudad} onChange={(e) => { setFCiudad(e.target.value); setPage(1); }}>
-                  <option value="__ALL__">Todas</option>
-                  {ciudades.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Zona</div>
-                <select value={fZona} onChange={(e) => { setFZona(e.target.value); setPage(1); }}>
-                  <option value="__ALL__">Todas</option>
-                  {zonas.map((z) => <option key={z} value={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Sociedad</div>
-                <select value={fSociedad} onChange={(e) => { setFSociedad(e.target.value); setPage(1); }}>
-                  <option value="__ALL__">Todas</option>
-                  {sociedades.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Categoría</div>
-                <select value={fCategoria} onChange={(e) => { setFCategoria(e.target.value); setPage(1); }}>
-                  <option value="__ALL__">Todas</option>
-                  {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Estado</div>
-                <select value={fEstado} onChange={(e) => { setFEstado(e.target.value); setPage(1); }}>
-                  <option value="__ALL__">Todos</option>
-                  {estados.map((e) => <option key={e} value={e}>{e}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>% Retroventa mín.</div>
-                <input type="number" step="any" value={fRetroMin} onChange={(e) => { setFRetroMin(e.target.value); setPage(1); }} style={{ width: 90 }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>% Retroventa máx.</div>
-                <input type="number" step="any" value={fRetroMax} onChange={(e) => { setFRetroMax(e.target.value); setPage(1); }} style={{ width: 90 }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Inicio desde</div>
-                <input type="date" value={fDesde} onChange={(e) => { setFDesde(e.target.value); setPage(1); }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Inicio hasta</div>
-                <input type="date" value={fHasta} onChange={(e) => { setFHasta(e.target.value); setPage(1); }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Buscar cliente / documento / secuencia</div>
-                <input type="text" value={fBusqueda} onChange={(e) => { setFBusqueda(e.target.value); setPage(1); }} style={{ width: '100%' }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head">
-              <h3>Listado de contratos</h3>
-              <span className="hint">{filtrados.length} de {contratos.length} · página {pageSafe} de {pageCount}</span>
-            </div>
+            <div className="panel-head"><h3>Resumen por estado</h3></div>
             <div style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left' }}>Cliente</th>
-                    <th>Ciudad</th><th>Zona</th><th>Sociedad</th><th>Categoría</th><th>% Retroventa</th>
-                    <th>Fecha inicio</th><th>Fecha terminación</th><th>Valor</th><th>Meses adeud.</th><th>Estado</th>
-                  </tr>
+                  <tr><th style={{ textAlign: 'left' }}>Estado</th><th>Contratos</th><th>Valor</th></tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((c) => {
-                    const d = daysUntil(c.fechaTerminacion);
-                    const vencido = d !== null && d < 0;
-                    const porVencer = d !== null && d >= 0 && d <= 30;
-                    return (
-                      <tr key={c.id}>
-                        <td className="name">{c.cliente || '—'}</td>
-                        <td>{c.ciudad}</td><td>{c.zona}</td><td>{sociedadOf(c.joyeria)}</td><td>{c.contratoCategoria}</td>
-                        <td>{fmtPct(c.porcentajeRetroventa).replace('+', '')}</td>
-                        <td>{fmtFecha(c.fechaInicio)}</td>
-                        <td style={{ color: vencido ? 'var(--red)' : porVencer ? 'var(--gold-light)' : undefined, fontWeight: vencido || porVencer ? 700 : 400 }}>
-                          {fmtFecha(c.fechaTerminacion)}
-                        </td>
-                        <td>{fmtMoney(c.contratoValor)}</td>
-                        <td>{c.mesesAdeudados || 0}</td>
-                        <td>{c.contratoEstado || '—'}</td>
-                      </tr>
-                    );
-                  })}
+                  {data.porEstado.map((e) => (
+                    <tr key={e.estado}>
+                      <td className="name">{e.estado}</td>
+                      <td>{e.count}</td>
+                      <td>{fmtMoney(e.valor)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-            {pageCount > 1 && (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, alignItems: 'center' }}>
-                <button className="btn-outline" type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pageSafe <= 1}>← Anterior</button>
-                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{pageSafe} / {pageCount}</span>
-                <button className="btn-outline" type="button" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={pageSafe >= pageCount}>Siguiente →</button>
-              </div>
-            )}
+          </div>
+
+          <div className="panel">
+            <div className="panel-head"><h3>Resumen por categoría</h3></div>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr><th style={{ textAlign: 'left' }}>Categoría</th><th>Contratos</th><th>Valor</th><th>Gramos</th></tr>
+                </thead>
+                <tbody>
+                  {data.porCategoria.map((c) => (
+                    <tr key={c.categoria}>
+                      <td className="name">{c.categoria}</td>
+                      <td>{c.count}</td>
+                      <td>{fmtMoney(c.valor)}</td>
+                      <td>{fmtGr(c.gramos)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

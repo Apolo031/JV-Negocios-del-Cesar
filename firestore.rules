@@ -81,10 +81,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Contratos (préstamos sobre oro) importados desde el archivo de control.
-    match /contratos/{docId} {
+    // Contratos (préstamos sobre oro): ya no se guarda una fila por
+    // contrato (con 100k+ filas agotaba la cuota de lecturas/escrituras de
+    // Firestore solo con abrir la pantalla) — se guarda un único resumen con
+    // los indicadores ya calculados al importar el informe mensual.
+    match /contratos_resumen/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Colección vieja de contratos fila por fila — ya no se usa (ver
+    // contratos_resumen de arriba). Se deja declarada, con lectura cerrada,
+    // mientras se limpia; no bloquea nada porque el código ya no la lee.
+    match /contratos/{docId} {
+      allow read, write: if false;
     }
 
     // Facturas (R+R: retiros y renovaciones), enlazadas a un contrato por
@@ -116,6 +126,14 @@ service cloud.firestore {
     // ese documento se reemplaza entero cada vez que se reimporta el Excel —
     // guardar la foto ahí se perdería en la siguiente carga.
     match /inventario_fotos/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Candados de coordinación entre procesos (ej. "importLock" para que una
+    // importación de contratos desde la pantalla y una desde un script de
+    // servidor no corran al mismo tiempo). No son datos del negocio.
+    match /meta/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
