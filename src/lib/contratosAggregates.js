@@ -127,6 +127,18 @@ export function computeAggregates(contratos) {
   const porRangoValorTodas = rangoValorDe(contratos);
   const porRangoValorOro = rangoValorDe(contratos.filter((c) => c.contratoCategoria === 'ORO'));
 
+  // Mismo rango de valor, pero recortado por sociedad — para el filtro del
+  // panel "Contratos por rango de valor" sin tener que guardar cada fila.
+  const porSociedadNombres = porSociedad.map((s) => s.sociedad);
+  const rangoValorPorSociedad = {};
+  for (const sociedad of porSociedadNombres) {
+    const deEsaSociedad = contratos.filter((c) => (sociedadReal(c) || '(sin sociedad)') === sociedad);
+    rangoValorPorSociedad[sociedad] = {
+      todas: rangoValorDe(deEsaSociedad),
+      oro: rangoValorDe(deEsaSociedad.filter((c) => c.contratoCategoria === 'ORO')),
+    };
+  }
+
   return {
     kpis: { totalContratos, valorTotal, retroProm, vencidos, porVencer },
     porEstado,
@@ -136,5 +148,6 @@ export function computeAggregates(contratos) {
     vencimientosPorPlazo,
     porRangoValorTodas,
     porRangoValorOro,
+    rangoValorPorSociedad,
   };
 }

@@ -162,6 +162,7 @@ export default function ContratosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rangoCategoria, setRangoCategoria] = useState('todas');
+  const [rangoSociedad, setRangoSociedad] = useState('__ALL__');
 
   async function loadResumen() {
     setLoading(true);
@@ -227,7 +228,10 @@ export default function ContratosPage() {
     XLSX.writeFile(wb, `informe-contratos-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
-  const rango = rangoCategoria === 'oro' ? data?.porRangoValorOro : data?.porRangoValorTodas;
+  const rangoBase = rangoSociedad === '__ALL__'
+    ? data
+    : data?.rangoValorPorSociedad?.[rangoSociedad];
+  const rango = rangoCategoria === 'oro' ? rangoBase?.porRangoValorOro || rangoBase?.oro : rangoBase?.porRangoValorTodas || rangoBase?.todas;
 
   return (
     <div>
@@ -367,7 +371,11 @@ export default function ContratosPage() {
           <div className="panel">
             <div className="panel-head">
               <h3>Contratos por rango de valor</h3>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={rangoSociedad} onChange={(e) => setRangoSociedad(e.target.value)}>
+                  <option value="__ALL__">Todas las sociedades</option>
+                  {data.porSociedad.map((s) => <option key={s.sociedad} value={s.sociedad}>{s.sociedad}</option>)}
+                </select>
                 <button className={rangoCategoria === 'todas' ? 'btn' : 'btn-outline'} type="button" onClick={() => setRangoCategoria('todas')}>Todas las categorías</button>
                 <button className={rangoCategoria === 'oro' ? 'btn' : 'btn-outline'} type="button" onClick={() => setRangoCategoria('oro')}>Solo oro</button>
               </div>
