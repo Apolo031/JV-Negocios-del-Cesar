@@ -62,7 +62,9 @@ function ImportarFacturas({ onImported }) {
         const slice = facturas.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const factura of slice) {
-          batch.set(doc(db, 'facturas', slugifyId(factura.secuenciaFactura)), factura);
+          // merge:true — un archivo con menos columnas no debe borrar lo que
+          // ya se había cargado de otro archivo que sí las traía.
+          batch.set(doc(db, 'facturas', slugifyId(factura.secuenciaFactura)), factura, { merge: true });
         }
         await batch.commit();
         done += slice.length;

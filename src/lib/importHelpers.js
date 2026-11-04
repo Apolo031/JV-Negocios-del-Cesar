@@ -103,10 +103,16 @@ export function pickSheetByHeaders(workbook, expectedHeaders) {
   for (const name of workbook.SheetNames) {
     const ws = workbook.Sheets[name];
     if (!ws) continue;
-    const headerRow = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true, range: 0 })[0] || [];
+    // El rango declarado de la hoja (ws['!ref']) puede quedar desactualizado
+    // cuando una hoja se duplicó o se recortó en Excel — dos hojas distintas
+    // pueden declarar el mismo rango aunque tengan cantidades de filas reales
+    // muy distintas. Para desempatar hay que contar las filas con datos de
+    // verdad (blankrows:false), no confiar en ese rango.
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true, blankrows: false });
+    const headerRow = rows[0] || [];
     const matches = headerRow.filter((h) => h && expectedHeaders.has(normalizeHeader(h))).length;
     if (matches === 0) continue;
-    const rowCount = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1').e.r || 0;
+    const rowCount = rows.length - 1;
     if (!best || matches > best.matches || (matches === best.matches && rowCount > best.rowCount)) {
       best = { name, matches, rowCount };
     }
@@ -132,11 +138,16 @@ export function mapRow(byNormalizedHeader, fieldMap) {
   const out = {};
   for (const [header, field, type] of fieldMap) {
     const raw = byNormalizedHeader[header];
-    if (raw === undefined && Object.prototype.hasOwnProperty.call(out, field)) continue;
+    // La columna no existe en este archivo (a diferencia de existir con la
+    // celda vacía, que llega como null por el defval de sheet_to_json) — se
+    // omite el campo en vez de pisarlo con vacío/0, para que al escribir con
+    // {merge:true} una importación con menos columnas no borre datos que ya
+    // se habían cargado de otro archivo que sí las traía.
+    if (raw === undefined) continue;
     if (type === 'number') out[field] = parseNumber(raw);
     else if (type === 'percent') out[field] = parsePercent(raw);
     else if (type === 'date') out[field] = parseDate(raw);
-    else out[field] = raw === null || raw === undefined ? '' : String(raw).trim();
+    else out[field] = raw === null ? '' : String(raw).trim();
   }
   return out;
 }

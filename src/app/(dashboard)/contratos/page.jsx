@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { fmtMoney, fmtPct } from '@/lib/dataHelpers';
+import { fmtMoney, fmtPct, fmtGr } from '@/lib/dataHelpers';
 import { parseContratosBuffer, slugifyId } from '@/lib/contratosParser';
 
 const PAGE_SIZE = 50;
@@ -36,6 +36,24 @@ function sociedadOf(joyeria) {
   const s = String(joyeria || '').replace(/^\d+-\s*/, '').trim();
   return s || joyeria || '';
 }
+
+// Prefiere el nombre real de "Sociedad" (del informe de contratos); si el
+// contrato no lo trae (se cargó de un archivo viejo que no tenía esa
+// columna), cae al nombre derivado de la Joyería.
+function sociedadReal(c) {
+  return c.sociedad || sociedadOf(c.joyeria);
+}
+
+// Mismos rangos de valor que trae el informe de contratos (hoja "CATEGORIAS").
+const RANGOS_VALOR = [
+  { desde: 0, hasta: 999999, label: 'Hasta $999.999' },
+  { desde: 1000000, hasta: 1999999, label: '$1.000.000 – $1.999.999' },
+  { desde: 2000000, hasta: 2999999, label: '$2.000.000 – $2.999.999' },
+  { desde: 3000000, hasta: 4999999, label: '$3.000.000 – $4.999.999' },
+  { desde: 5000000, hasta: 9999999, label: '$5.000.000 – $9.999.999' },
+  { desde: 10000000, hasta: 29999999, label: '$10.000.000 – $29.999.999' },
+  { desde: 30000000, hasta: Infinity, label: '$30.000.000 o más' },
+];
 
 // "Contrato Termino" usa la misma columna para dos unidades distintas: los
 // contratos de venta directa están a 15 días (no 15 meses), y el resto de
@@ -85,7 +103,10 @@ function ImportarContratos({ onImported }) {
         const slice = contratos.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const contrato of slice) {
-          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato);
+          // merge:true — un archivo con menos columnas (p. ej. uno sin
+          // Sociedad/Jefe de Zona) no debe borrar lo que ya se había cargado
+          // de otro archivo que sí las traía.
+          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato, { merge: true });
         }
         await batch.commit();
         done += slice.length;
@@ -204,6 +225,56 @@ export default function ContratosPage() {
     return Object.values(grupos).sort((a, b) => ordenPlazo(a.termino) - ordenPlazo(b.termino));
   }, [filtrados]);
 
+  const resumenSociedad = useMemo(() => {
+    const grupos = {};
+    for (const c of filtrados) {
+      const key = sociedadReal(c) || '(sin sociedad)';
+      if (!grupos[key]) grupos[key] = { sociedad: key, contratos: 0, valorTotal: 0, gramosOro: 0, valorOro: 0 };
+      const g = grupos[key];
+      g.contratos++;
+      g.valorTotal += c.contratoValor || 0;
+      if (c.contratoCategoria === 'ORO') {
+        g.gramosOro += c.contratoGramosEstimados || 0;
+        g.valorOro += c.contratoValor || 0;
+      }
+    }
+    return Object.values(grupos).sort((a, b) => b.valorTotal - a.valorTotal);
+  }, [filtrados]);
+
+  const resumenJoyeria = useMemo(() => {
+    const grupos = {};
+    for (const c of filtrados) {
+      const key = c.joyeria || '(sin joyería)';
+      if (!grupos[key]) grupos[key] = { joyeria: key, sociedad: sociedadReal(c), ciudad: c.ciudad, contratos: 0, valorTotal: 0, gramosOro: 0, valorOro: 0 };
+      const g = grupos[key];
+      g.contratos++;
+      g.valorTotal += c.contratoValor || 0;
+      if (c.contratoCategoria === 'ORO') {
+        g.gramosOro += c.contratoGramosEstimados || 0;
+        g.valorOro += c.contratoValor || 0;
+      }
+    }
+    return Object.values(grupos).sort((a, b) => b.valorTotal - a.valorTotal);
+  }, [filtrados]);
+
+  const [rangoCategoria, setRangoCategoria] = useState('todas');
+
+  const resumenRangoValor = useMemo(() => {
+    const base = rangoCategoria === 'oro' ? filtrados.filter((c) => c.contratoCategoria === 'ORO') : filtrados;
+    const totalContratos = base.length;
+    const totalValor = base.reduce((s, c) => s + (c.contratoValor || 0), 0);
+    const totalGramos = base.reduce((s, c) => s + (c.contratoGramosEstimados || 0), 0);
+    const buckets = RANGOS_VALOR.map((r) => ({ ...r, contratos: 0, valor: 0, gramos: 0 }));
+    for (const c of base) {
+      const v = c.contratoValor || 0;
+      const b = buckets.find((x) => v >= x.desde && v <= x.hasta) || buckets[buckets.length - 1];
+      b.contratos++;
+      b.valor += v;
+      b.gramos += c.contratoGramosEstimados || 0;
+    }
+    return { buckets, totalContratos, totalValor, totalGramos };
+  }, [filtrados, rangoCategoria]);
+
   const pageCount = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount);
   const pageItems = filtrados.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
@@ -281,6 +352,106 @@ export default function ContratosPage() {
                       <td style={{ color: g.vencidos > 0 ? 'var(--red)' : undefined, fontWeight: g.vencidos > 0 ? 700 : 400 }}>{g.vencidos}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head"><h3>Resumen por sociedad</h3></div>
+            <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Sociedad</th>
+                    <th>Contratos</th><th>Valor total</th><th>Gramos oro</th><th>Valor oro</th><th>$/gramo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenSociedad.map((s) => (
+                    <tr key={s.sociedad}>
+                      <td className="name">{s.sociedad}</td>
+                      <td>{s.contratos}</td>
+                      <td>{fmtMoney(s.valorTotal)}</td>
+                      <td>{fmtGr(s.gramosOro)}</td>
+                      <td>{fmtMoney(s.valorOro)}</td>
+                      <td>{s.gramosOro ? fmtMoney(s.valorOro / s.gramosOro) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Resumen por sucursal</h3>
+              <span className="hint">{resumenJoyeria.length} sucursales</span>
+            </div>
+            <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Sucursal</th>
+                    <th style={{ textAlign: 'left' }}>Sociedad</th>
+                    <th>Ciudad</th><th>Contratos</th><th>Valor total</th><th>Gramos oro</th><th>Valor oro</th><th>$/gramo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenJoyeria.map((j) => (
+                    <tr key={j.joyeria}>
+                      <td className="name">{j.joyeria}</td>
+                      <td>{j.sociedad}</td>
+                      <td>{j.ciudad}</td>
+                      <td>{j.contratos}</td>
+                      <td>{fmtMoney(j.valorTotal)}</td>
+                      <td>{fmtGr(j.gramosOro)}</td>
+                      <td>{fmtMoney(j.valorOro)}</td>
+                      <td>{j.gramosOro ? fmtMoney(j.valorOro / j.gramosOro) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Contratos por rango de valor</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className={rangoCategoria === 'todas' ? 'btn' : 'btn-outline'} type="button" onClick={() => setRangoCategoria('todas')}>Todas las categorías</button>
+                <button className={rangoCategoria === 'oro' ? 'btn' : 'btn-outline'} type="button" onClick={() => setRangoCategoria('oro')}>Solo oro</button>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Rango</th>
+                    <th>Contratos</th><th>% contratos</th>
+                    {rangoCategoria === 'oro' && <th>Gramos</th>}
+                    <th>Valor</th><th>% valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenRangoValor.buckets.map((b) => (
+                    <tr key={b.label}>
+                      <td className="name">{b.label}</td>
+                      <td>{b.contratos}</td>
+                      <td>{fmtPct(resumenRangoValor.totalContratos ? (b.contratos / resumenRangoValor.totalContratos) * 100 : 0).replace('+', '')}</td>
+                      {rangoCategoria === 'oro' && <td>{fmtGr(b.gramos)}</td>}
+                      <td>{fmtMoney(b.valor)}</td>
+                      <td>{fmtPct(resumenRangoValor.totalValor ? (b.valor / resumenRangoValor.totalValor) * 100 : 0).replace('+', '')}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ fontWeight: 700 }}>
+                    <td className="name">Total general</td>
+                    <td>{resumenRangoValor.totalContratos}</td>
+                    <td>100.0%</td>
+                    {rangoCategoria === 'oro' && <td>{fmtGr(resumenRangoValor.totalGramos)}</td>}
+                    <td>{fmtMoney(resumenRangoValor.totalValor)}</td>
+                    <td>100.0%</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
