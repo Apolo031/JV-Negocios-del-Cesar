@@ -6,7 +6,7 @@ import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtMoney, fmtPct, fmtGr } from '@/lib/dataHelpers';
-import { parseContratosBuffer, slugifyId } from '@/lib/contratosParser';
+import { parseContratosBuffer } from '@/lib/contratosParser';
 
 const PAGE_SIZE = 50;
 
@@ -119,7 +119,11 @@ function ImportarContratos({ onImported }) {
         const slice = contratos.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const contrato of slice) {
-          batch.set(doc(db, 'contratos', slugifyId(contrato.contratoSecuencia)), contrato);
+          // ID autogenerado: dos filas del archivo pueden traer la misma
+          // Contrato Secuencia repetida (no es un identificador único de
+          // verdad) y como cada importación reemplaza todo, no hace falta
+          // una clave estable — así no se pierde ninguna fila por chocar.
+          batch.set(doc(collection(db, 'contratos')), contrato);
         }
         await batch.commit();
         done += slice.length;

@@ -202,7 +202,10 @@ async function main() {
     const slice = contratos.slice(i, i + WRITE_CHUNK);
     const batch = db.batch();
     for (const contrato of slice) {
-      batch.set(db.collection('contratos').doc(slugifyId(contrato.contratoSecuencia)), contrato);
+      // ID autogenerado: una Contrato Secuencia repetida en el archivo no
+      // debe pisar a la fila anterior, y como cada importación reemplaza
+      // todo no hace falta una clave estable por secuencia.
+      batch.set(db.collection('contratos').doc(), contrato);
     }
     await batch.commit();
     cargados += slice.length;
