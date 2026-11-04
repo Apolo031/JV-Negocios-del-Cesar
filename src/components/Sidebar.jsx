@@ -18,9 +18,6 @@ const SECTIONS = [
   {
     title: 'Operaciones y comercial',
     items: [
-      { href: '/contratos', label: 'Contratos', icon: '📜' },
-      { href: '/facturas', label: 'Facturas (R+R)', icon: '🧾' },
-      { href: '/inventario', label: 'Inventario', icon: '💎' },
       { href: '/reparaciones', label: 'Reparaciones', icon: '🔧' },
       { href: '/identificar-joya', label: 'Identificar joya', icon: '🔍' },
       { href: '/publicidad', label: 'Publicidad y pendientes', icon: '📣' },
