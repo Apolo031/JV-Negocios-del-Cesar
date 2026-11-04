@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
@@ -77,11 +77,20 @@ function ImportarContratos({ onImported }) {
   const [progress, setProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const cancelRef = useRef(false);
 
   if (!isAdmin) return null;
 
+  function handleCancel() {
+    cancelRef.current = true;
+    setCancelling(true);
+  }
+
   async function handleImport() {
     if (!file) { setError('Elige primero un archivo .xlsx, .xls o .csv'); return; }
+    cancelRef.current = false;
+    setCancelling(false);
     setImporting(true);
     setError('');
     setResult(null);
@@ -106,6 +115,11 @@ function ImportarContratos({ onImported }) {
       const refsABorrar = existentes.docs.map((d) => d.ref);
       let borrados = 0;
       for (let i = 0; i < refsABorrar.length; i += WRITE_CHUNK) {
+        if (cancelRef.current) {
+          setResult({ cancelado: true, borrados, count: 0 });
+          onImported?.();
+          return;
+        }
         const slice = refsABorrar.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const ref of slice) batch.delete(ref);
@@ -116,6 +130,11 @@ function ImportarContratos({ onImported }) {
 
       let done = 0;
       for (let i = 0; i < contratos.length; i += WRITE_CHUNK) {
+        if (cancelRef.current) {
+          setResult({ cancelado: true, borrados: refsABorrar.length, count: done });
+          onImported?.();
+          return;
+        }
         const slice = contratos.slice(i, i + WRITE_CHUNK);
         const batch = writeBatch(db);
         for (const contrato of slice) {
@@ -160,9 +179,20 @@ function ImportarContratos({ onImported }) {
                 : `Cargando… (${progress.done}/${progress.total})`
             : 'Reemplazar con este archivo'}
         </button>
+        {importing && progress && (
+          <button className="btn-outline" type="button" onClick={handleCancel} disabled={cancelling}>
+            {cancelling ? 'Cancelando…' : 'Cancelar'}
+          </button>
+        )}
       </div>
       {error && <div className="login-error">{error}</div>}
-      {result && (
+      {result && result.cancelado && (
+        <div style={{ fontSize: 12.5, color: 'var(--gold-light)', marginTop: 12 }}>
+          Cancelado: quedó a medias (se borraron {result.borrados} y se alcanzaron a cargar {result.count}).
+          La cartera no está completa hasta que vuelvas a importar el archivo sin cancelar.
+        </div>
+      )}
+      {result && !result.cancelado && (
         <div style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 12 }}>
           Listo: se borraron {result.borrados} contratos anteriores y se cargaron {result.count} nuevos.
         </div>
