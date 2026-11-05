@@ -48,6 +48,30 @@ function coarrendatario(row, i) {
   };
 }
 
+/**
+ * El propietario puede estar dividido entre varios dueños con distinto
+ * porcentaje (hasta 13 "copropietarios" en el Excel, además del propietario
+ * principal). Cada uno puede además tener un beneficiario de pago distinto
+ * (a quién se le consigna, no necesariamente al dueño).
+ */
+function copropietario(row, i) {
+  const nombre = limpiar(row[`Nombre_Copropietario_${i}`]);
+  if (!nombre) return null;
+  return {
+    cedula: limpiar(row[`Nro_id_Copropietario_${i}`]),
+    nombre,
+    participacion: parseNumber(row[`Participacion_Copropietario_${i}`]),
+    beneficiario: {
+      nroId: limpiar(row[`Nro_id_Beneficiario_Copropietario_${i}`]),
+      nombre: limpiar(row[`Nombre_Beneficiario_Copropietario_${i}`]),
+      cuenta: limpiar(row[`Consignar_cta_Beneficiario_Copropietario_${i}`]),
+      codigoACH: limpiar(row[`Codigo_ACH_Beneficiario_Copropietario_${i}`]),
+      tipoCuenta: limpiar(row[`Tipo_Cuenta_Beneficiario_Copropietario_${i}`]),
+      banco: limpiar(row[`Banco_Beneficiario_Copropietario_${i}`]),
+    },
+  };
+}
+
 /** Copia la fila completa tal cual (para no perder ningún dato que no se mapeó arriba). */
 function filaCompleta(row) {
   const out = {};
@@ -101,6 +125,7 @@ export function parseInmueblesBuffer(bufferOrBytes) {
       siniestrado: esVerdadero(row.Siniestrado),
       propietarioDoc: {
         nroId: limpiar(row.Nro_id_propietario),
+        participacion: parseNumber(row.Participacion_Prop),
         direccion: limpiar(row.Dir_Propietario),
         municipio: limpiar(row.Municipio_Prop),
         telefonoRes: limpiar(row.telefono_res_Prop),
@@ -123,6 +148,7 @@ export function parseInmueblesBuffer(bufferOrBytes) {
         municipioCorrespondencia: limpiar(row.Municipio_Correspondencia_Inq),
       },
       coarrendatarios: [1, 2, 3, 4].map((i) => coarrendatario(row, i)).filter(Boolean),
+      copropietarios: Array.from({ length: 13 }, (_, i) => copropietario(row, i + 1)).filter(Boolean),
       observaciones: limpiar(row.Observaciones),
       raw: filaCompleta(row),
     }));

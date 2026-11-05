@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, doc, getDocs, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
@@ -189,7 +189,10 @@ export default function BasePrincipalPage() {
 
   function handleExportExcel() {
     const rows = filtrados.map((r) => ({
-      Contrato: r.contrato, Estado: r.activo ? 'Activo' : 'Inactivo', Propietario: r.propietario, Arrendatario: r.inquilino,
+      Contrato: r.contrato, Estado: r.activo ? 'Activo' : 'Inactivo',
+      Propietario: r.propietario, 'Participación propietario': r.propietarioDoc?.participacion,
+      Copropietarios: (r.copropietarios || []).map((c) => `${c.nombre} (${c.participacion}%)`).join(' / ') || null,
+      Arrendatario: r.inquilino,
       Dirección: r.direccion, Municipio: r.municipio, Barrio: r.barrio, Clase: r.clase, 'Tipo de contrato': r.tipoContrato,
       Canon: r.canon, 'Comisión + IVA': r.comisionMasIva, Aseguradora: r.aseguradora,
       'Celular arrendatario': r.inquilinoDoc?.celular, 'Celular propietario': r.propietarioDoc?.celular,
@@ -283,8 +286,8 @@ export default function BasePrincipalPage() {
                   const mapa = urlMapa(r.direccion, r.municipio);
                   const abierto = expandedId === r.id;
                   return (
-                    <>
-                      <tr key={r.id}>
+                    <Fragment key={r.id}>
+                      <tr>
                         <td>{r.contrato}</td>
                         <td className="name">{r.propietario || '—'}</td>
                         <td>{r.inquilino || '—'}</td>
@@ -298,7 +301,7 @@ export default function BasePrincipalPage() {
                         </td>
                       </tr>
                       {abierto && (
-                        <tr key={`${r.id}-detalle`}>
+                        <tr>
                           <td colSpan={9} style={{ background: 'var(--surface-2)', padding: '18px 16px' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10, gap: 8 }}>
                               {mapa && <a className="btn-outline" href={mapa} target="_blank" rel="noopener noreferrer">📍 Ver en mapa</a>}
@@ -332,8 +335,9 @@ export default function BasePrincipalPage() {
                               <Campo label="Auxiliar" value={r.auxiliar} />
                             </Seccion>
 
-                            <Seccion titulo="Propietario">
+                            <Seccion titulo={`Propietario${r.copropietarios?.length > 0 ? ` (${1 + r.copropietarios.length} dueños)` : ''}`}>
                               <Campo label="Nombre" value={r.propietario} />
+                              <Campo label="Participación" value={r.propietarioDoc?.participacion ? `${r.propietarioDoc.participacion}%` : null} />
                               <Campo label="Documento" value={r.propietarioDoc?.nroId} />
                               <Campo label="Dirección" value={r.propietarioDoc?.direccion} />
                               <Campo label="Municipio" value={r.propietarioDoc?.municipio} />
@@ -358,6 +362,18 @@ export default function BasePrincipalPage() {
                               <Campo label="Dirección correspondencia" value={r.inquilinoDoc?.direccionCorrespondencia} />
                               <Campo label="Municipio correspondencia" value={r.inquilinoDoc?.municipioCorrespondencia} />
                             </Seccion>
+
+                            {r.copropietarios?.length > 0 && (
+                              <Seccion titulo={`Copropietarios (${r.copropietarios.length})`}>
+                                {r.copropietarios.map((c, i) => (
+                                  <Campo
+                                    key={i}
+                                    label={`Copropietario ${i + 1} · ${c.participacion}%`}
+                                    value={`${c.nombre}${c.beneficiario?.nombre && c.beneficiario.nombre !== c.nombre ? ` (paga a: ${c.beneficiario.nombre})` : ''}`}
+                                  />
+                                ))}
+                              </Seccion>
+                            )}
 
                             {r.coarrendatarios?.length > 0 && (
                               <Seccion titulo={`Coarrendatarios (${r.coarrendatarios.length})`}>
@@ -389,7 +405,7 @@ export default function BasePrincipalPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
