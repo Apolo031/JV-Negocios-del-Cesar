@@ -49,27 +49,49 @@ function coarrendatario(row, i) {
 }
 
 /**
- * El propietario puede estar dividido entre varios dueños con distinto
- * porcentaje (hasta 13 "copropietarios" en el Excel, además del propietario
- * principal). Cada uno puede además tener un beneficiario de pago distinto
- * (a quién se le consigna, no necesariamente al dueño).
+ * Un inmueble puede tener un solo dueño o estar dividido entre varios — el
+ * Excel modela esto como "el propietario" + hasta 13 "copropietarios", pero
+ * para el panel son el mismo concepto repetido: cada uno es simplemente un
+ * dueño con su propio porcentaje de participación. Por eso se arman todos
+ * en UNA sola lista, en el mismo orden en que vienen en el archivo (el
+ * principal primero), en vez de tratar al primero como un caso aparte.
  */
-function copropietario(row, i) {
-  const nombre = limpiar(row[`Nombre_Copropietario_${i}`]);
-  if (!nombre) return null;
-  return {
-    cedula: limpiar(row[`Nro_id_Copropietario_${i}`]),
-    nombre,
-    participacion: parseNumber(row[`Participacion_Copropietario_${i}`]),
-    beneficiario: {
-      nroId: limpiar(row[`Nro_id_Beneficiario_Copropietario_${i}`]),
-      nombre: limpiar(row[`Nombre_Beneficiario_Copropietario_${i}`]),
-      cuenta: limpiar(row[`Consignar_cta_Beneficiario_Copropietario_${i}`]),
-      codigoACH: limpiar(row[`Codigo_ACH_Beneficiario_Copropietario_${i}`]),
-      tipoCuenta: limpiar(row[`Tipo_Cuenta_Beneficiario_Copropietario_${i}`]),
+function propietarios(row) {
+  const lista = [];
+  const principal = limpiar(row.nombre_Propietario);
+  if (principal) {
+    lista.push({
+      documento: limpiar(row.Nro_id_propietario),
+      nombre: principal,
+      participacion: parseNumber(row.Participacion_Prop),
+      direccion: limpiar(row.Dir_Propietario),
+      municipio: limpiar(row.Municipio_Prop),
+      telefonoRes: limpiar(row.telefono_res_Prop),
+      telefonoOf: limpiar(row.telefono_of_prop),
+      celular: limpiar(row.Celular_Prop),
+      email: limpiar(row.Email_Prop),
+      emailFacturacion: limpiar(row.Email_Facturacion_Prop),
+      banco: limpiar(row.Banco_Prop),
+      tipoCuenta: limpiar(row.Tipo_Cuenta_Prop),
+      cuenta: limpiar(row.Consignar_cta_Prop),
+    });
+  }
+  for (let i = 1; i <= 13; i++) {
+    const nombre = limpiar(row[`Nombre_Copropietario_${i}`]);
+    if (!nombre) continue;
+    lista.push({
+      documento: limpiar(row[`Nro_id_Copropietario_${i}`]),
+      nombre,
+      participacion: parseNumber(row[`Participacion_Copropietario_${i}`]),
+      // El beneficiario de pago puede ser distinto del dueño (a quién se le
+      // consigna, no necesariamente al propietario registrado).
+      beneficiario: limpiar(row[`Nombre_Beneficiario_Copropietario_${i}`]),
       banco: limpiar(row[`Banco_Beneficiario_Copropietario_${i}`]),
-    },
-  };
+      tipoCuenta: limpiar(row[`Tipo_Cuenta_Beneficiario_Copropietario_${i}`]),
+      cuenta: limpiar(row[`Consignar_cta_Beneficiario_Copropietario_${i}`]),
+    });
+  }
+  return lista;
 }
 
 /** Copia la fila completa tal cual (para no perder ningún dato que no se mapeó arriba). */
@@ -92,11 +114,13 @@ export function parseInmueblesBuffer(bufferOrBytes) {
 
   return rows
     .filter((r) => r.Contrato !== null && r.Contrato !== undefined && r.Contrato !== '')
-    .map((row) => ({
+    .map((row) => {
+    const listaPropietarios = propietarios(row);
+    return {
       id: String(row.Contrato).trim(),
       contrato: parseNumber(row.Contrato),
       activo: esVerdadero(row.Activo),
-      propietario: limpiar(row.nombre_Propietario),
+      propietario: listaPropietarios[0]?.nombre || null,
       inquilino: limpiar(row.Nombre_Inquilino),
       direccion: limpiar(row.Dir_Inmueble),
       municipio: limpiar(row.Municipio_Inmueble),
@@ -123,20 +147,7 @@ export function parseInmueblesBuffer(bufferOrBytes) {
       telInmueble: limpiar(row.Tel_Inmueble),
       aseguradora: limpiar(row.Nombre_Aseguradora),
       siniestrado: esVerdadero(row.Siniestrado),
-      propietarioDoc: {
-        nroId: limpiar(row.Nro_id_propietario),
-        participacion: parseNumber(row.Participacion_Prop),
-        direccion: limpiar(row.Dir_Propietario),
-        municipio: limpiar(row.Municipio_Prop),
-        telefonoRes: limpiar(row.telefono_res_Prop),
-        telefonoOf: limpiar(row.telefono_of_prop),
-        celular: limpiar(row.Celular_Prop),
-        email: limpiar(row.Email_Prop),
-        emailFacturacion: limpiar(row.Email_Facturacion_Prop),
-        banco: limpiar(row.Banco_Prop),
-        tipoCuenta: limpiar(row.Tipo_Cuenta_Prop),
-        cuenta: limpiar(row.Consignar_cta_Prop),
-      },
+      propietarios: listaPropietarios,
       inquilinoDoc: {
         nroId: limpiar(row.Nro_id_Inquilino),
         celular: limpiar(row.Celular_Inq),
@@ -148,10 +159,10 @@ export function parseInmueblesBuffer(bufferOrBytes) {
         municipioCorrespondencia: limpiar(row.Municipio_Correspondencia_Inq),
       },
       coarrendatarios: [1, 2, 3, 4].map((i) => coarrendatario(row, i)).filter(Boolean),
-      copropietarios: Array.from({ length: 13 }, (_, i) => copropietario(row, i + 1)).filter(Boolean),
       observaciones: limpiar(row.Observaciones),
       raw: filaCompleta(row),
-    }));
+    };
+  });
 }
 
 /** Link de Google Maps a partir de la dirección + municipio (el archivo no trae coordenadas). */

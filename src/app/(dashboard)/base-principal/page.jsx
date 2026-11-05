@@ -37,6 +37,30 @@ function Seccion({ titulo, children }) {
   );
 }
 
+function PropietarioCard({ p, index }) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--surface)' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        {index + 1}. {p.nombre} {p.participacion ? <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>· {p.participacion}%</span> : null}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '2px 14px' }}>
+        <Campo label="Documento" value={p.documento} />
+        <Campo label="Dirección" value={p.direccion} />
+        <Campo label="Municipio" value={p.municipio} />
+        <Campo label="Teléfono residencia" value={p.telefonoRes} />
+        <Campo label="Teléfono oficina" value={p.telefonoOf} />
+        <Campo label="Celular" value={p.celular} />
+        <Campo label="Email" value={p.email} />
+        <Campo label="Email facturación" value={p.emailFacturacion} />
+        <Campo label="Paga a (beneficiario)" value={p.beneficiario} />
+        <Campo label="Banco" value={p.banco} />
+        <Campo label="Tipo de cuenta" value={p.tipoCuenta} />
+        <Campo label="Cuenta" value={p.cuenta} />
+      </div>
+    </div>
+  );
+}
+
 function ImportarInmuebles({ onImported }) {
   const { isAdmin } = useAuth();
   const [file, setFile] = useState(null);
@@ -175,7 +199,8 @@ export default function BasePrincipalPage() {
         if (fClase !== '__ALL__' && r.clase !== fClase) return false;
         if (fEstado !== '__ALL__' && (fEstado === 'activo' ? !r.activo : r.activo)) return false;
         if (busq) {
-          const hay = `${r.contrato} ${r.propietario} ${r.inquilino} ${r.direccion}`.toLowerCase();
+          const nombresPropietarios = (r.propietarios || []).map((p) => p.nombre).join(' ');
+          const hay = `${r.contrato} ${nombresPropietarios} ${r.inquilino} ${r.direccion}`.toLowerCase();
           if (!hay.includes(busq)) return false;
         }
         return true;
@@ -190,12 +215,11 @@ export default function BasePrincipalPage() {
   function handleExportExcel() {
     const rows = filtrados.map((r) => ({
       Contrato: r.contrato, Estado: r.activo ? 'Activo' : 'Inactivo',
-      Propietario: r.propietario, 'Participación propietario': r.propietarioDoc?.participacion,
-      Copropietarios: (r.copropietarios || []).map((c) => `${c.nombre} (${c.participacion}%)`).join(' / ') || null,
+      Propietarios: (r.propietarios || []).map((p) => `${p.nombre} (${p.participacion}%)`).join(' / ') || null,
       Arrendatario: r.inquilino,
       Dirección: r.direccion, Municipio: r.municipio, Barrio: r.barrio, Clase: r.clase, 'Tipo de contrato': r.tipoContrato,
       Canon: r.canon, 'Comisión + IVA': r.comisionMasIva, Aseguradora: r.aseguradora,
-      'Celular arrendatario': r.inquilinoDoc?.celular, 'Celular propietario': r.propietarioDoc?.celular,
+      'Celular arrendatario': r.inquilinoDoc?.celular, 'Celular propietario': r.propietarios?.[0]?.celular,
       'Fecha contrato': r.fechaContrato, 'Fecha fin contrato': r.fechaFinContrato, Asesor: r.asesor,
     }));
     const wb = XLSX.utils.book_new();
@@ -289,7 +313,10 @@ export default function BasePrincipalPage() {
                     <Fragment key={r.id}>
                       <tr>
                         <td>{r.contrato}</td>
-                        <td className="name">{r.propietario || '—'}</td>
+                        <td className="name">
+                          {r.propietario || '—'}
+                          {(r.propietarios?.length || 0) > 1 && <span className="pill neu" style={{ marginLeft: 6 }}>+{r.propietarios.length - 1}</span>}
+                        </td>
                         <td>{r.inquilino || '—'}</td>
                         <td>{r.direccion || '—'}</td>
                         <td>{r.municipio || '—'}</td>
@@ -335,21 +362,15 @@ export default function BasePrincipalPage() {
                               <Campo label="Auxiliar" value={r.auxiliar} />
                             </Seccion>
 
-                            <Seccion titulo={`Propietario${r.copropietarios?.length > 0 ? ` (${1 + r.copropietarios.length} dueños)` : ''}`}>
-                              <Campo label="Nombre" value={r.propietario} />
-                              <Campo label="Participación" value={r.propietarioDoc?.participacion ? `${r.propietarioDoc.participacion}%` : null} />
-                              <Campo label="Documento" value={r.propietarioDoc?.nroId} />
-                              <Campo label="Dirección" value={r.propietarioDoc?.direccion} />
-                              <Campo label="Municipio" value={r.propietarioDoc?.municipio} />
-                              <Campo label="Teléfono residencia" value={r.propietarioDoc?.telefonoRes} />
-                              <Campo label="Teléfono oficina" value={r.propietarioDoc?.telefonoOf} />
-                              <Campo label="Celular" value={r.propietarioDoc?.celular} />
-                              <Campo label="Email" value={r.propietarioDoc?.email} />
-                              <Campo label="Email facturación" value={r.propietarioDoc?.emailFacturacion} />
-                              <Campo label="Banco" value={r.propietarioDoc?.banco} />
-                              <Campo label="Tipo de cuenta" value={r.propietarioDoc?.tipoCuenta} />
-                              <Campo label="Cuenta" value={r.propietarioDoc?.cuenta} />
-                            </Seccion>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                                {(r.propietarios?.length || 0) > 1 ? `Propietarios (${r.propietarios.length} dueños)` : 'Propietario'}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {(r.propietarios || []).map((p, i) => <PropietarioCard key={i} p={p} index={i} />)}
+                                {(r.propietarios || []).length === 0 && <div className="empty-note">Sin propietario registrado.</div>}
+                              </div>
+                            </div>
 
                             <Seccion titulo="Arrendatario">
                               <Campo label="Nombre" value={r.inquilino} />
@@ -362,18 +383,6 @@ export default function BasePrincipalPage() {
                               <Campo label="Dirección correspondencia" value={r.inquilinoDoc?.direccionCorrespondencia} />
                               <Campo label="Municipio correspondencia" value={r.inquilinoDoc?.municipioCorrespondencia} />
                             </Seccion>
-
-                            {r.copropietarios?.length > 0 && (
-                              <Seccion titulo={`Copropietarios (${r.copropietarios.length})`}>
-                                {r.copropietarios.map((c, i) => (
-                                  <Campo
-                                    key={i}
-                                    label={`Copropietario ${i + 1} · ${c.participacion}%`}
-                                    value={`${c.nombre}${c.beneficiario?.nombre && c.beneficiario.nombre !== c.nombre ? ` (paga a: ${c.beneficiario.nombre})` : ''}`}
-                                  />
-                                ))}
-                              </Seccion>
-                            )}
 
                             {r.coarrendatarios?.length > 0 && (
                               <Seccion titulo={`Coarrendatarios (${r.coarrendatarios.length})`}>
