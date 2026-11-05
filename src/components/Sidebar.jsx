@@ -31,6 +31,12 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'Zona Centro inmobiliaria',
+    items: [
+      { href: '/base-principal', label: 'Base principal', icon: '🏢' },
+    ],
+  },
+  {
     title: 'Administración y configuración',
     items: [
       { href: '/admin/usuarios', label: 'Usuarios', icon: '👥', adminOnly: true },

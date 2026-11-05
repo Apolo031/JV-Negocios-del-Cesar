@@ -130,6 +130,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Inmuebles en arriendo de Zona Centro Inmobiliaria: un documento por
+    // contrato, cargado desde el Excel maestro "BS-ACTIVOS" (propietario,
+    // arrendatario, coarrendatarios, seguro y condiciones del contrato).
+    match /inmuebles/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Candados de coordinación entre procesos (ej. "importLock" para que una
     // importación de contratos desde la pantalla y una desde un script de
     // servidor no corran al mismo tiempo). No son datos del negocio.
