@@ -160,7 +160,11 @@ export default function ReparacionesPage() {
     const pendientes = filtradas.filter((r) => r.estado === 'Pendiente' || r.estado === 'En proceso').length;
     const clientes = filtradas.filter((r) => r.esCliente === 'Sí').length;
     const noClientes = filtradas.filter((r) => r.esCliente === 'No').length;
-    return { total, terminadas, entregadas, pendientes, clientes, noClientes };
+    // Registros donde "¿Es cliente?" llegó vacío (ej. de una importación de
+    // Excel con esa columna en blanco) — ni "Sí" ni "No", para que los 3
+    // números siempre sumen el total en vez de perderse en silencio.
+    const sinDefinir = total - clientes - noClientes;
+    return { total, terminadas, entregadas, pendientes, clientes, noClientes, sinDefinir };
   }, [filtradas]);
 
   // Resumen por sucursal: siempre sobre TODOS los registros (no el filtro
@@ -265,7 +269,12 @@ export default function ReparacionesPage() {
         <div className="kpi"><div className="label">Reparaciones (filtro actual)</div><div className="value">{fmtNum(kpis.total)}</div></div>
         <div className="kpi"><div className="label">Pendientes / en proceso</div><div className="value">{fmtNum(kpis.pendientes)}</div></div>
         <div className="kpi"><div className="label">Terminadas</div><div className="value">{fmtNum(kpis.terminadas)}</div></div>
-        <div className="kpi"><div className="label">Clientes / no clientes</div><div className="value">{fmtNum(kpis.clientes)} / {fmtNum(kpis.noClientes)}</div></div>
+        <div className="kpi">
+          <div className="label">Clientes / no clientes{kpis.sinDefinir > 0 ? ' / sin definir' : ''}</div>
+          <div className="value">
+            {fmtNum(kpis.clientes)} / {fmtNum(kpis.noClientes)}{kpis.sinDefinir > 0 && ` / ${fmtNum(kpis.sinDefinir)}`}
+          </div>
+        </div>
       </div>
 
       <div className="panel">
