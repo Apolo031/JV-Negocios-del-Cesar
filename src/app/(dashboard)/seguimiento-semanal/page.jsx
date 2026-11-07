@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
-  BRANCHES, BRANCH_COLOR, EDIT_METRICS, METRIC_LABEL,
+  BRANCHES, BRANCH_COLOR, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES,
   fmtMoney, fmtPct, fmtConcepto, weekKey, weekLabel,
 } from '@/lib/dataHelpers';
 
@@ -21,16 +21,44 @@ function semanaVacia() {
   return porSucursal;
 }
 
-/** Agrupa los cuadres de caja diarios en semanas (Lunes–Domingo), sumando cada indicador por sucursal. */
+/** "1 – 6 Nov 2026" a partir de una fecha de inicio y una de fin (mismo mes o no). */
+function etiquetaRango(anio, mes, dia, anioFin, mesFin, diaFin) {
+  const ini = new Date(anio, mes - 1, dia);
+  const fin = new Date(anioFin, mesFin - 1, diaFin);
+  const mismoMes = ini.getMonth() === fin.getMonth() && ini.getFullYear() === fin.getFullYear();
+  const iniTxt = mismoMes ? `${ini.getDate()}` : `${ini.getDate()} ${MONTH_NAMES[ini.getMonth()]}`;
+  return `${iniTxt} – ${fin.getDate()} ${MONTH_NAMES[fin.getMonth()]} ${fin.getFullYear()}`;
+}
+
+/**
+ * Agrupa los cuadres de caja en periodos, sumando cada indicador por
+ * sucursal. Un cuadre normal (de un solo día) se agrupa por semana
+ * calendario (Lunes–Domingo); pero un "consolidado" de varios días (ej. un
+ * reporte semanal que ya trae el total de esos días) arma SU PROPIO periodo
+ * — tal como venía en el PDF — en vez de forzarlo a encajar en una semana
+ * calendario, porque ese total ya es de ese rango exacto.
+ */
 function agruparPorSemana(cuadresDiarios) {
   const mapa = {};
   cuadresDiarios.forEach((c) => {
     if (!c.sucursal || !c.anio || !c.mes || !c.dia || !BRANCHES.includes(c.sucursal)) return;
-    const key = weekKey(c.anio, c.mes, c.dia);
-    if (!mapa[key]) mapa[key] = { key, porSucursal: semanaVacia() };
+    const esPeriodo = c.diaFin && (c.diaFin !== c.dia || c.mesFin !== c.mes || String(c.anioFin) !== String(c.anio));
+    let key, label, dias;
+    if (esPeriodo) {
+      key = `P_${c.anio}-${String(c.mes).padStart(2, '0')}-${String(c.dia).padStart(2, '0')}_${c.anioFin}-${String(c.mesFin).padStart(2, '0')}-${String(c.diaFin).padStart(2, '0')}`;
+      label = etiquetaRango(c.anio, c.mes, c.dia, c.anioFin, c.mesFin, c.diaFin);
+      const ini = new Date(c.anio, c.mes - 1, c.dia);
+      const fin = new Date(c.anioFin, c.mesFin - 1, c.diaFin);
+      dias = Math.max(1, Math.round((fin - ini) / 86400000) + 1);
+    } else {
+      key = weekKey(c.anio, c.mes, c.dia);
+      label = weekLabel(key);
+      dias = 1;
+    }
+    if (!mapa[key]) mapa[key] = { key, label, porSucursal: semanaVacia() };
     const dest = mapa[key].porSucursal[c.sucursal];
     METRICAS.forEach((m) => { dest[m] += c.valores?.[m] || 0; });
-    dest.dias += 1;
+    dest.dias += dias;
   });
   return Object.values(mapa).sort((a, b) => a.key.localeCompare(b.key));
 }
@@ -44,7 +72,7 @@ function construirAlertas(actual, anterior) {
     if (dias === 0) {
       alertas.push({
         sev: 'med', icon: 'i', title: `${b}: sin cuadres de caja esta semana`,
-        desc: `No se ha cargado ningún "Cuadre de caja" de ${b} en la semana del ${weekLabel(actual.key)} — puede que falte subirlos o que la sucursal no haya reportado.`,
+        desc: `No se ha cargado ningún "Cuadre de caja" de ${b} en el periodo del ${actual.label} — puede que falte subirlos o que la sucursal no haya reportado.`,
       });
     }
   });
@@ -58,7 +86,7 @@ function construirAlertas(actual, anterior) {
       const pct = ((utilActual - utilAnterior) / utilAnterior) * 100;
       alertas.push({
         sev: 'high', icon: '▼', title: `${b}: caída de utilidad semanal`,
-        desc: `Bajó de ${fmtMoney(utilAnterior)} a ${fmtMoney(utilActual)} (${fmtPct(pct)}) vs. la semana del ${weekLabel(anterior.key)}.`,
+        desc: `Bajó de ${fmtMoney(utilAnterior)} a ${fmtMoney(utilActual)} (${fmtPct(pct)}) vs. el periodo del ${anterior.label}.`,
       });
     }
   });
@@ -70,7 +98,7 @@ function construirAlertas(actual, anterior) {
   if (rank[0] && rank[0].v > 0) {
     alertas.push({
       sev: 'low', icon: '★', title: `${rank[0].b} lidera la semana en utilidad`,
-      desc: `Acumula ${fmtMoney(rank[0].v)} en la semana del ${weekLabel(actual.key)}, la cifra más alta entre las sucursales con cuadres cargados.`,
+      desc: `Acumula ${fmtMoney(rank[0].v)} en el periodo del ${actual.label}, la cifra más alta entre las sucursales con cuadres cargados.`,
     });
   }
 
@@ -90,7 +118,7 @@ export default function SeguimientoSemanalPage() {
     return (
       <div>
         <div className="topbar">
-          <div><h1>Seguimiento semanal</h1><p>Comparativo semana a semana a partir de los cuadres de caja diarios</p></div>
+          <div><h1>Seguimiento semanal</h1><p>Comparativo periodo a periodo a partir de los cuadres de caja</p></div>
         </div>
         <div className="alert-empty">
           Todavía no hay cuadres de caja cargados. Súbelos desde el "Panel de Cuadre de caja" en Editar datos y aquí se van a agrupar por semana automáticamente.
@@ -113,17 +141,17 @@ export default function SeguimientoSemanalPage() {
   return (
     <div>
       <div className="topbar">
-        <div><h1>Seguimiento semanal</h1><p>Comparativo semana a semana a partir de los cuadres de caja diarios</p></div>
+        <div><h1>Seguimiento semanal</h1><p>Comparativo periodo a periodo a partir de los cuadres de caja</p></div>
         <select value={key} onChange={(e) => setSemanaSel(e.target.value)}>
           {semanas.map((s) => (
-            <option key={s.key} value={s.key}>{weekLabel(s.key)}{s.key === semanas[semanas.length - 1].key ? ' (última)' : ''}</option>
+            <option key={s.key} value={s.key}>{s.label}{s.key === semanas[semanas.length - 1].key ? ' (última)' : ''}</option>
           ))}
         </select>
       </div>
 
       <div className="kpi-row">
         <div className="kpi">
-          <div className="label">Utilidad de la semana</div>
+          <div className="label">Utilidad del periodo</div>
           <div className="value">{fmtMoney(totalUtilidad)}</div>
         </div>
         <div className="kpi">

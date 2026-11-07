@@ -48,9 +48,19 @@ const TIPO_INFO = {
 let idCounter = 0;
 function nextId() { idCounter += 1; return `pdf_${Date.now()}_${idCounter}`; }
 
-/** Id determinístico del cuadre diario de una sucursal en una fecha puntual — reutilizarlo hace que volver a subir el mismo día lo reemplace en vez de duplicarlo. */
-function idCuadreDiario(sucursal, anio, mes, dia) {
-  return `${sucursal}_${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+/**
+ * Id determinístico del cuadre de una sucursal para una fecha puntual (o un
+ * rango, si `diaFin` viene informado) — reutilizarlo hace que volver a
+ * subir el mismo día (o el mismo rango) lo reemplace en vez de duplicarlo.
+ */
+function idCuadreDiario(sucursal, anio, mes, dia, diaFin) {
+  const base = `${sucursal}_${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  return diaFin ? `${base}_a_${String(diaFin).padStart(2, '0')}` : base;
+}
+
+/** true si el resultado cubre varios días (ej. un "consolidado" de una semana) en vez de un solo día. */
+function esPeriodo(r) {
+  return !!(r?.diaFin && (r.diaFin !== r.dia || r.mesFin !== r.mes || String(r.anioFin) !== String(r.anio)));
 }
 
 function PanelPdfCaja({ tipoEsperado, branch, year }) {
@@ -95,7 +105,11 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
   /** Lo que ya hay guardado para el renglón de la tabla de revisión: el mes completo para Consolidado, o este mismo día para Cuadre de caja. */
   function valorActualGuardado(it, metric) {
     if (tipoEsperado === 'cuadre') {
-      const existente = cuadresDiarios.find((c) => c.sucursal === it.sucursalSel && String(c.anio) === String(it.añoSel) && c.mes === it.mesIdx + 1 && c.dia === it.resultado.dia);
+      const r = it.resultado;
+      const existente = cuadresDiarios.find((c) =>
+        c.sucursal === it.sucursalSel && String(c.anio) === String(it.añoSel) && c.mes === it.mesIdx + 1 &&
+        c.dia === r.dia && (c.diaFin || null) === (esPeriodo(r) ? r.diaFin : null)
+      );
       return existente?.valores?.[metric] || 0;
     }
     return series(monthly, it.sucursalSel, it.añoSel, metric)[it.mesIdx] || 0;
@@ -118,7 +132,13 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
         // consolidado por cada mes del año) — cada uno se revisa y se
         // guarda por separado, como si fuera su propio archivo.
         const resultados = data.resultados || [];
-        const coinciden = resultados.filter((r) => r.tipo === tipoEsperado);
+        // El panel de "Cuadre de caja" además acepta un "consolidado" que
+        // cubra solo unos días (ej. una semana) en vez de un día o un mes
+        // completo — ese PDF sigue trayendo el header "MOVIMIENTOS DE CAJA
+        // CONSOLIDADOS" (tipo 'consolidado'), pero aquí se usa para sumar
+        // esos días de una sola vez a "Seguimiento semanal", sin tocar
+        // "Resumen general" (eso solo lo hace el panel de Consolidado).
+        const coinciden = resultados.filter((r) => r.tipo === tipoEsperado || (tipoEsperado === 'cuadre' && r.tipo === 'consolidado'));
         if (coinciden.length === 0) {
           const otro = resultados[0];
           throw new Error(`Este PDF parece ser de ${TIPO_INFO[otro?.tipo]?.nombrePdf || 'otro formato'} — súbelo en el panel de "${TIPO_INFO[otro?.tipo]?.titulo || info.nombreOtro}".`);
@@ -129,7 +149,7 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
           const an = r.anio || year;
           const mi = r.mes ? r.mes - 1 : 0;
           const etiquetaPeriodo = tipoEsperado === 'cuadre'
-            ? (r.dia ? `Día ${fechaStr(r.dia, mi + 1, an)}` : '')
+            ? (r.dia ? (esPeriodo(r) ? `${fechaStr(r.dia, mi + 1, an)} – ${fechaStr(r.diaFin, r.mesFin, r.anioFin)}` : `Día ${fechaStr(r.dia, mi + 1, an)}`) : '')
             : `${MONTH_NAMES_FULL[mi]} ${an}`;
           return {
             id: nextId(),
@@ -165,14 +185,18 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
             await saveMonthlyMetric(it.sucursalSel, it.añoSel, metric, arr);
           }
         } else {
-          // El cuadre de caja diario NO toca "monthly"/"Resumen general" —
-          // solo queda en su propia ficha (sucursal + fecha), que es lo que
-          // lee "Seguimiento semanal". Volver a subir el mismo día reemplaza
-          // su ficha en vez de duplicarla.
-          if (!it.resultado.dia) continue;
-          const diaId = idCuadreDiario(it.sucursalSel, it.añoSel, it.mesIdx + 1, it.resultado.dia);
+          // El cuadre de caja (de un solo día, o de un rango de días como un
+          // consolidado semanal) NO toca "monthly"/"Resumen general" — solo
+          // queda en su propia ficha (sucursal + fecha/rango), que es lo que
+          // lee "Seguimiento semanal". Volver a subir el mismo día o el mismo
+          // rango reemplaza su ficha en vez de duplicarla.
+          const r = it.resultado;
+          if (!r.dia) continue;
+          const periodo = esPeriodo(r);
+          const diaId = idCuadreDiario(it.sucursalSel, it.añoSel, it.mesIdx + 1, r.dia, periodo ? r.diaFin : null);
           await guardarCuadreDiario(diaId, {
-            sucursal: it.sucursalSel, anio: it.añoSel, mes: it.mesIdx + 1, dia: it.resultado.dia,
+            sucursal: it.sucursalSel, anio: it.añoSel, mes: it.mesIdx + 1, dia: r.dia,
+            ...(periodo ? { diaFin: r.diaFin, mesFin: r.mesFin, anioFin: Number(r.anioFin) } : { diaFin: null, mesFin: null, anioFin: null }),
             valores: it.valores, actualizadoEn: Date.now(),
           });
         }
@@ -282,7 +306,7 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
                   <thead>
                     <tr>
                       <th style={{ textAlign: 'left' }}>Métrica</th>
-                      <th>{tipoEsperado === 'cuadre' ? 'Ya guardado para este día' : 'Valor actual guardado'}</th>
+                      <th>{tipoEsperado === 'cuadre' ? (esPeriodo(it.resultado) ? 'Ya guardado para este periodo' : 'Ya guardado para este día') : 'Valor actual guardado'}</th>
                       <th>Valor extraído del PDF</th>
                       <th>A aplicar</th>
                     </tr>
