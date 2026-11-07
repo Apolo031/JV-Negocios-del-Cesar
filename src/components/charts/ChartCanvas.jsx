@@ -7,6 +7,61 @@ Chart.defaults.color = '#8d96ac';
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
 
+/**
+ * Dibuja el valor exacto encima de cada barra/punto, para no tener que
+ * pasar el mouse por encima para verlo. Se activa por gráfica pasando
+ * `options.plugins.valueLabels: { formatter }` en el config — si una
+ * gráfica no lo trae, este plugin no hace nada (no afecta a las demás).
+ *
+ * OJO: las opciones NO se leen de `chart.options` — Chart.js envuelve esa
+ * rama en un proxy "scriptable" que, al leer cualquier propiedad de tipo
+ * función (como `formatter`), la EJECUTA automáticamente pasándole su
+ * propio contexto interno en vez del valor real, y usa ESE resultado como
+ * si fuera el valor de la opción. Para evitarlo, `ChartCanvas` guarda las
+ * opciones originales (tal cual las escribió cada página) en
+ * `chart.$valueLabels`, por fuera del árbol de `options`, y acá se leen de
+ * ahí sin pasar nunca por ese proxy.
+ */
+const valueLabelsPlugin = {
+  id: 'valueLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.$valueLabels;
+    if (!opts || opts.display === false) return;
+    const { ctx } = chart;
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+      meta.data.forEach((element, index) => {
+        const value = dataset.data[index];
+        if (value === null || value === undefined || value === 0) return;
+        const texto = opts.formatter ? opts.formatter(value, { dataset, datasetIndex, index }) : String(value);
+        const pos = element.tooltipPosition();
+        ctx.save();
+        ctx.fillStyle = opts.color || '#e8ebf2';
+        ctx.font = opts.font || '600 10px Inter, sans-serif';
+        // Si el texto no cabe de ancho en la columna de esta barra (típico
+        // con valores en pesos de varias sucursales juntas), se gira 90°
+        // para que crezca hacia arriba en vez de invadir la barra vecina.
+        const anchoDisponible = (element.width || 30) * 1.4;
+        const cabeHorizontal = ctx.measureText(texto).width <= anchoDisponible;
+        if (cabeHorizontal) {
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(texto, pos.x, pos.y - (opts.offset ?? 4));
+        } else {
+          ctx.translate(pos.x, pos.y - (opts.offset ?? 4));
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(texto, 0, 0);
+        }
+        ctx.restore();
+      });
+    });
+  },
+};
+Chart.register(valueLabelsPlugin);
+
 /** Envuelve un <canvas> y crea/destruye un Chart.js cada vez que cambia `config`. */
 export default function ChartCanvas({ config, height = 220 }) {
   const canvasRef = useRef(null);
@@ -16,6 +71,8 @@ export default function ChartCanvas({ config, height = 220 }) {
     if (!canvasRef.current || !config) return;
     if (chartRef.current) chartRef.current.destroy();
     chartRef.current = new Chart(canvasRef.current, config);
+    // Por fuera de `options` a propósito — ver el comentario de valueLabelsPlugin.
+    chartRef.current.$valueLabels = config.options?.plugins?.valueLabels || null;
     return () => { chartRef.current && chartRef.current.destroy(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(config)]);

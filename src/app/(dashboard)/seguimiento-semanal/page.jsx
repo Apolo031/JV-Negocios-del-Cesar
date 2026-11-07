@@ -5,7 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
   BRANCHES, BRANCH_COLOR, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES,
-  fmtMoney, fmtPct, fmtConcepto, weekKey, weekLabel,
+  fmtMoney, fmtPct, fmtConcepto, isMoney, weekKey, weekLabel,
 } from '@/lib/dataHelpers';
 
 // Los 8 indicadores que trae el "Cuadre de caja" (ver /editar) — los mismos
@@ -202,9 +202,13 @@ export default function SeguimientoSemanalPage() {
                   }],
                 },
                 options: {
+                  // Los valores en pesos suelen quedar girados (ver ChartCanvas)
+                  // por ser texto largo — necesitan más espacio arriba para no cortarse.
+                  layout: { padding: { top: isMoney(metric) ? 90 : 20 } },
                   plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: (c) => fmtConcepto(metric, c.raw) } },
+                    valueLabels: { formatter: (v) => fmtConcepto(metric, v) },
                   },
                   scales: { y: { ticks: { callback: (v) => fmtConcepto(metric, v) } } },
                 },
