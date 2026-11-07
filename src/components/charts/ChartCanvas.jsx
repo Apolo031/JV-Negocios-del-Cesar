@@ -8,11 +8,16 @@ Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
 
 /**
- * Dibuja el valor exacto INCRUSTADO dentro de cada barra (cerca del
- * borde superior, creciendo hacia abajo), para no tener que pasar el
- * mouse por encima para verlo. Se activa por gráfica pasando
+ * Dibuja el valor exacto INCRUSTADO dentro de cada barra, para no tener
+ * que pasar el mouse por encima para verlo. Se activa por gráfica pasando
  * `options.plugins.valueLabels: { formatter }` en el config — si una
  * gráfica no lo trae, este plugin no hace nada (no afecta a las demás).
+ *
+ * En una barra HORIZONTAL (`indexAxis: 'y'`) el texto queda derecho,
+ * pegado al borde final de la barra — hay tanto ancho como el panel, así
+ * que no hace falta rotarlo. En una barra VERTICAL normal, si el texto no
+ * cabe de ancho dentro de la columna, se gira 90° y crece hacia abajo,
+ * dentro de la barra.
  *
  * OJO: las opciones NO se leen de `chart.options` — Chart.js envuelve esa
  * rama en un proxy "scriptable" que, al leer cualquier propiedad de tipo
@@ -29,6 +34,7 @@ const valueLabelsPlugin = {
     const opts = chart.$valueLabels;
     if (!opts || opts.display === false) return;
     const { ctx } = chart;
+    const horizontal = chart.options?.indexAxis === 'y';
     chart.data.datasets.forEach((dataset, datasetIndex) => {
       const meta = chart.getDatasetMeta(datasetIndex);
       if (meta.hidden) return;
@@ -39,31 +45,44 @@ const valueLabelsPlugin = {
         const pos = element.tooltipPosition();
         const dentroOffset = opts.offset ?? 6;
         ctx.save();
-        ctx.font = opts.font || '600 10px Inter, sans-serif';
-        // Si el texto no cabe de ancho en la columna de esta barra (típico
-        // con valores en pesos de varias sucursales juntas), se gira 90°
-        // para que crezca hacia abajo DENTRO de la barra en vez de
-        // invadir la barra vecina. Siempre queda anclado justo debajo del
-        // borde superior de la barra (adentro), nunca por fuera.
-        const anchoDisponible = (element.width || 30) * 1.4;
-        const cabeHorizontal = ctx.measureText(texto).width <= anchoDisponible;
-
+        ctx.font = opts.font || '600 11px Inter, sans-serif';
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = 'rgba(0,0,0,0.5)';
         ctx.fillStyle = opts.color || '#ffffff';
 
-        if (cabeHorizontal) {
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.strokeText(texto, pos.x, pos.y + dentroOffset);
-          ctx.fillText(texto, pos.x, pos.y + dentroOffset);
-        } else {
-          ctx.translate(pos.x, pos.y + dentroOffset);
-          ctx.rotate(Math.PI / 2);
-          ctx.textAlign = 'left';
+        if (horizontal) {
+          // Pegado al extremo final de la barra, hacia adentro. Si la
+          // barra es demasiado corta para el texto, se deja justo después
+          // (afuera) en vez de encimarlo con el eje de categorías.
+          const anchoTexto = ctx.measureText(texto).width;
+          const anchoBarra = Math.abs((element.base ?? pos.x) - pos.x);
+          const cabeAdentro = anchoBarra > anchoTexto + dentroOffset * 2;
+          ctx.textAlign = cabeAdentro ? 'right' : 'left';
           ctx.textBaseline = 'middle';
-          ctx.strokeText(texto, 0, 0);
-          ctx.fillText(texto, 0, 0);
+          const x = cabeAdentro ? pos.x - dentroOffset : pos.x + dentroOffset;
+          if (!cabeAdentro) ctx.fillStyle = opts.colorFuera || '#bfc6d6';
+          ctx.strokeText(texto, x, pos.y);
+          ctx.fillText(texto, x, pos.y);
+        } else {
+          // Si el texto no cabe de ancho en la columna de esta barra
+          // (típico con valores en pesos de varias sucursales juntas), se
+          // gira 90° para que crezca hacia abajo DENTRO de la barra en vez
+          // de invadir la barra vecina.
+          const anchoDisponible = (element.width || 30) * 1.4;
+          const cabeHorizontal = ctx.measureText(texto).width <= anchoDisponible;
+          if (cabeHorizontal) {
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.strokeText(texto, pos.x, pos.y + dentroOffset);
+            ctx.fillText(texto, pos.x, pos.y + dentroOffset);
+          } else {
+            ctx.translate(pos.x, pos.y + dentroOffset);
+            ctx.rotate(Math.PI / 2);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.strokeText(texto, 0, 0);
+            ctx.fillText(texto, 0, 0);
+          }
         }
         ctx.restore();
       });

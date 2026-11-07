@@ -185,12 +185,12 @@ export default function SeguimientoSemanalPage() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
         {METRICAS.map((metric) => (
           <div className="panel" key={metric}>
             <div className="panel-head"><h3>{METRIC_LABEL[metric]}</h3></div>
             <ChartCanvas
-              height={170}
+              height={210}
               config={{
                 type: 'bar',
                 data: {
@@ -202,13 +202,14 @@ export default function SeguimientoSemanalPage() {
                   }],
                 },
                 options: {
-                  layout: { padding: { top: 14 } },
+                  indexAxis: 'y',
+                  layout: { padding: { right: 14 } },
                   plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: (c) => fmtConcepto(metric, c.raw) } },
                     valueLabels: { formatter: (v) => fmtConcepto(metric, v) },
                   },
-                  scales: { y: { ticks: { callback: (v) => fmtConcepto(metric, v) } } },
+                  scales: { x: { ticks: { callback: (v) => fmtConcepto(metric, v) } } },
                 },
               }}
             />
