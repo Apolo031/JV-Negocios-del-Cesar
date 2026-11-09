@@ -151,10 +151,45 @@ function FotosInmueble({ r, isAdmin }) {
   );
 }
 
+/** Compara contra lo que ya hay en Firestore y aplica el reemplazo completo (nuevos/actualizados + borra los que ya no están). */
+async function importarRegistros(registros, setProgress) {
+  if (registros.length === 0) {
+    throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la hoja "BS-ACTIVOS...").');
+  }
+
+  const existentesSnap = await getDocs(collection(db, 'inmuebles'));
+  const idsExistentes = new Set(existentesSnap.docs.map((d) => d.id));
+  const idsNuevos = new Set(registros.map((r) => r.id));
+  const aEliminar = [...idsExistentes].filter((id) => !idsNuevos.has(id));
+
+  const total = registros.length + aEliminar.length;
+  let done = 0;
+
+  for (let i = 0; i < registros.length; i += WRITE_CHUNK) {
+    const slice = registros.slice(i, i + WRITE_CHUNK);
+    const batch = writeBatch(db);
+    for (const r of slice) batch.set(doc(db, 'inmuebles', r.id), { ...r, actualizadoEn: Date.now() });
+    await batch.commit();
+    done += slice.length;
+    setProgress({ done, total });
+  }
+  for (let i = 0; i < aEliminar.length; i += WRITE_CHUNK) {
+    const slice = aEliminar.slice(i, i + WRITE_CHUNK);
+    const batch = writeBatch(db);
+    for (const id of slice) batch.delete(doc(db, 'inmuebles', id));
+    await batch.commit();
+    done += slice.length;
+    setProgress({ done, total });
+  }
+
+  return { count: registros.length, eliminados: aEliminar.length };
+}
+
 function ImportarInmuebles({ onImported }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, getIdToken } = useAuth();
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importingSheet, setImportingSheet] = useState(false);
   const [progress, setProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -170,36 +205,8 @@ function ImportarInmuebles({ onImported }) {
     try {
       const buffer = await file.arrayBuffer();
       const registros = parseInmueblesBuffer(buffer);
-      if (registros.length === 0) {
-        throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la hoja "BS-ACTIVOS...").');
-      }
-
-      const existentesSnap = await getDocs(collection(db, 'inmuebles'));
-      const idsExistentes = new Set(existentesSnap.docs.map((d) => d.id));
-      const idsNuevos = new Set(registros.map((r) => r.id));
-      const aEliminar = [...idsExistentes].filter((id) => !idsNuevos.has(id));
-
-      const total = registros.length + aEliminar.length;
-      let done = 0;
-
-      for (let i = 0; i < registros.length; i += WRITE_CHUNK) {
-        const slice = registros.slice(i, i + WRITE_CHUNK);
-        const batch = writeBatch(db);
-        for (const r of slice) batch.set(doc(db, 'inmuebles', r.id), { ...r, actualizadoEn: Date.now() });
-        await batch.commit();
-        done += slice.length;
-        setProgress({ done, total });
-      }
-      for (let i = 0; i < aEliminar.length; i += WRITE_CHUNK) {
-        const slice = aEliminar.slice(i, i + WRITE_CHUNK);
-        const batch = writeBatch(db);
-        for (const id of slice) batch.delete(doc(db, 'inmuebles', id));
-        await batch.commit();
-        done += slice.length;
-        setProgress({ done, total });
-      }
-
-      setResult({ count: registros.length, eliminados: aEliminar.length });
+      const res = await importarRegistros(registros, setProgress);
+      setResult(res);
       setFile(null);
       onImported?.();
     } catch (err) {
@@ -210,20 +217,49 @@ function ImportarInmuebles({ onImported }) {
     }
   }
 
+  async function handleImportarDesdeSheet() {
+    setImportingSheet(true);
+    setError('');
+    setResult(null);
+    setProgress(null);
+    try {
+      const token = await getIdToken();
+      const res = await fetch('/api/sheet-inmuebles', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo descargar la hoja de Google.');
+      }
+      const buffer = await res.arrayBuffer();
+      const registros = parseInmueblesBuffer(buffer);
+      const result = await importarRegistros(registros, setProgress);
+      setResult(result);
+      onImported?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImportingSheet(false);
+      setProgress(null);
+    }
+  }
+
   return (
     <div className="panel">
       <div className="panel-head"><h3>Importar / actualizar contratos</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
         Sube el Excel maestro de contratos (la hoja <b>BS-ACTIVOS</b>, el export completo del software de
-        arriendos). Cada contrato queda guardado con propietario, arrendatario, coarrendatarios, seguro y
-        condiciones del contrato. <b>Esta carga reemplaza</b> todo lo que ya está guardado — si un contrato
-        ya no aparece en el nuevo archivo, se elimina de aquí también — así que siempre sube el archivo
-        completo y actualizado, no solo los contratos nuevos.
+        arriendos), o actualiza directo desde la hoja de Google en vivo. Cada contrato queda guardado con
+        propietario, arrendatario, coarrendatarios, seguro y condiciones del contrato. <b>Esta carga reemplaza</b>{' '}
+        todo lo que ya está guardado — si un contrato ya no aparece, se elimina de aquí también — así que
+        siempre viene del archivo/hoja completa y actualizada, no solo de los contratos nuevos.
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input type="file" accept=".xlsx,.xls" onChange={(e) => setFile(e.target.files[0] || null)} style={{ fontSize: 12, color: 'var(--text-dim)' }} />
-        <button className="btn" onClick={handleImport} disabled={importing || !file}>
+        <button className="btn" onClick={handleImport} disabled={importing || importingSheet || !file}>
           {importing ? (progress ? `Importando… (${progress.done}/${progress.total})` : 'Leyendo archivo…') : 'Importar archivo'}
+        </button>
+        <span style={{ color: 'var(--text-dimmer)', fontSize: 12 }}>o</span>
+        <button className="btn-outline" onClick={handleImportarDesdeSheet} disabled={importing || importingSheet}>
+          {importingSheet ? (progress ? `Importando… (${progress.done}/${progress.total})` : 'Descargando hoja…') : '🔄 Actualizar desde Google Sheets'}
         </button>
       </div>
       {error && <div className="login-error">{error}</div>}
