@@ -1,18 +1,54 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { MONTH_NAMES_FULL } from '@/lib/dataHelpers';
+import { MONTH_NAMES_FULL, fmtMoney, fmtNum } from '@/lib/dataHelpers';
 import { parseNombreFactura, SERVICIOS } from '@/lib/facturasServiciosParser';
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const TIPOS_DOC_ACEPTADOS = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+// Solo PDF e imagen se le pueden pasar a la IA para extraer datos — un .docx hay que abrirlo a mano.
+const TIPOS_EXTRAIBLES = ['application/pdf'];
 
 function esArchivoAceptado(file) {
   return file.type.startsWith('image/') || TIPOS_DOC_ACEPTADOS.includes(file.type);
+}
+
+function esExtraible(archivo) {
+  return archivo?.type && (TIPOS_EXTRAIBLES.includes(archivo.type) || archivo.type.startsWith('image/'));
+}
+
+/**
+ * Le pide al servidor que lea la factura con IA y guarda lo que encuentre en
+ * el documento. La descarga del archivo la hace el servidor (no el
+ * navegador): el bucket de Storage no trae encabezados CORS, así que un
+ * fetch directo desde el cliente a esa URL queda bloqueado.
+ */
+async function extraerDatosFactura(f, getIdToken) {
+  const token = await getIdToken();
+  const res = await fetch('/api/extraer-factura', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ url: f.archivo.src }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'No se pudo extraer la información');
+  const e = data.extraido;
+  await updateDoc(doc(db, 'facturas_servicios', f.id), {
+    empresa: e.empresa || null,
+    valorTotal: typeof e.valor_total === 'number' ? e.valor_total : null,
+    consumo: typeof e.consumo === 'number' ? e.consumo : null,
+    unidadConsumo: e.unidad_consumo || null,
+    periodoFacturado: e.periodo_facturado || null,
+    fechaVencimiento: e.fecha_vencimiento || null,
+    numeroFactura: e.numero_factura || null,
+    confianzaExtraccion: e.confianza || null,
+    extraido: true,
+    errorExtraccion: null,
+  });
 }
 
 let idCounter = 0;
@@ -200,10 +236,13 @@ function SubirFacturas({ inmueblesPorContrato, onGuardado }) {
 }
 
 export default function FacturaServiciosPublicosPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, getIdToken } = useAuth();
   const [facturas, setFacturas] = useState([]);
   const [inmuebles, setInmuebles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [extrayendoId, setExtrayendoId] = useState(null);
+  const [extrayendoTodo, setExtrayendoTodo] = useState(false);
+  const [progresoExtraccion, setProgresoExtraccion] = useState(null);
 
   const [fPeriodo, setFPeriodo] = useState('__ALL__');
   const [fMunicipio, setFMunicipio] = useState('__ALL__');
@@ -254,6 +293,48 @@ export default function FacturaServiciosPublicosPage() {
       .sort((a, b) => b.periodo.localeCompare(a.periodo) || (a.municipio || '').localeCompare(b.municipio || '', 'es') || Number(a.contrato) - Number(b.contrato));
   }, [facturas, fPeriodo, fMunicipio, fServicio, fBusqueda, inmueblesPorContrato]);
 
+  const resumenGasto = useMemo(() => {
+    const total = filtradas.reduce((s, f) => s + (f.valorTotal || 0), 0);
+    const conDatos = filtradas.filter((f) => f.extraido).length;
+    const porServicio = {};
+    filtradas.forEach((f) => {
+      if (!f.valorTotal) return;
+      porServicio[f.servicio] = (porServicio[f.servicio] || 0) + f.valorTotal;
+    });
+    const filas = Object.entries(porServicio).sort((a, b) => b[1] - a[1]);
+    return { total, conDatos, filas };
+  }, [filtradas]);
+
+  const pendientesExtraccion = useMemo(() => facturas.filter((f) => !f.extraido && esExtraible(f.archivo)), [facturas]);
+
+  async function handleExtraerUna(f) {
+    setExtrayendoId(f.id);
+    try {
+      await extraerDatosFactura(f, getIdToken);
+    } catch (err) {
+      await updateDoc(doc(db, 'facturas_servicios', f.id), { errorExtraccion: err.message });
+    } finally {
+      setExtrayendoId(null);
+    }
+  }
+
+  async function handleExtraerPendientes() {
+    setExtrayendoTodo(true);
+    let done = 0;
+    setProgresoExtraccion({ done, total: pendientesExtraccion.length });
+    for (const f of pendientesExtraccion) {
+      try {
+        await extraerDatosFactura(f, getIdToken);
+      } catch (err) {
+        await updateDoc(doc(db, 'facturas_servicios', f.id), { errorExtraccion: err.message });
+      }
+      done += 1;
+      setProgresoExtraccion({ done, total: pendientesExtraccion.length });
+    }
+    setExtrayendoTodo(false);
+    setProgresoExtraccion(null);
+  }
+
   async function handleEliminar(f) {
     try {
       await deleteObject(ref(storage, f.archivo.path));
@@ -275,11 +356,51 @@ export default function FacturaServiciosPublicosPage() {
 
       <div className="kpi-row">
         <div className="kpi"><div className="label">Facturas cargadas</div><div className="value">{facturas.length}</div></div>
+        <div className="kpi"><div className="label">Gasto total (filtro actual)</div><div className="value">{fmtMoney(resumenGasto.total)}</div></div>
         <div className="kpi"><div className="label">Periodos</div><div className="value">{periodos.length}</div></div>
         <div className="kpi"><div className="label">Municipios</div><div className="value">{municipios.length}</div></div>
       </div>
 
       <SubirFacturas inmueblesPorContrato={inmueblesPorContrato} />
+
+      {isAdmin && pendientesExtraccion.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Extraer datos con IA</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            Lee cada factura (PDF o imagen) con IA para sacar el valor a pagar, el consumo y la fecha de
+            vencimiento, y así poder comparar gastos sin abrir cada archivo. Hay <b>{pendientesExtraccion.length}</b>{' '}
+            factura{pendientesExtraccion.length === 1 ? '' : 's'} sin extraer todavía.
+          </div>
+          <button className="btn" type="button" onClick={handleExtraerPendientes} disabled={extrayendoTodo}>
+            {extrayendoTodo
+              ? `Extrayendo… (${progresoExtraccion?.done || 0}/${progresoExtraccion?.total || 0})`
+              : `Extraer ${pendientesExtraccion.length} factura(s) pendiente(s)`}
+          </button>
+        </div>
+      )}
+
+      {resumenGasto.filas.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Gasto por servicio</h3></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {resumenGasto.filas.map(([servicio, valor]) => {
+              const max = Math.max(1, ...resumenGasto.filas.map((x) => x[1]));
+              return (
+                <div key={servicio} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 100, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{servicio}</div>
+                  <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 22 }}>
+                    <div style={{ width: `${(valor / max) * 100}%`, background: 'var(--gold)', height: '100%', minWidth: 3 }} />
+                  </div>
+                  <div style={{ width: 140, flexShrink: 0, fontSize: 12.5, textAlign: 'right' }}><b>{fmtMoney(valor)}</b></div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 10 }}>
+            Calculado sobre {resumenGasto.conDatos} de {filtradas.length} facturas del filtro actual que ya tienen datos extraídos.
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">
@@ -332,22 +453,34 @@ export default function FacturaServiciosPublicosPage() {
               <thead>
                 <tr>
                   <th>Periodo</th><th>Contrato</th><th style={{ textAlign: 'left' }}>Propietario / dirección</th>
-                  <th>Municipio</th><th>Servicio</th><th>Subunidad</th><th></th>
+                  <th>Municipio</th><th>Servicio</th><th>Valor</th><th>Consumo</th><th>Vence</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtradas.map((f) => {
                   const info = inmueblesPorContrato.get(f.contrato);
+                  const extrayendo = extrayendoId === f.id;
                   return (
                     <tr key={f.id}>
                       <td>{periodoLabel(f.periodo)}</td>
                       <td>{f.contrato}</td>
                       <td className="name">{info ? `${info.propietario || '—'} · ${info.direccion || ''}` : <span style={{ color: 'var(--red)' }}>Contrato no encontrado</span>}</td>
                       <td>{f.municipio || info?.municipio || '—'}</td>
-                      <td>{f.servicio}</td>
-                      <td>{f.subunidad || '—'}</td>
-                      <td style={{ display: 'flex', gap: 6 }}>
+                      <td>{f.servicio}{f.subunidad ? <div style={{ fontSize: 10.5, color: 'var(--text-dimmer)' }}>{f.subunidad}</div> : null}</td>
+                      <td>{f.valorTotal ? fmtMoney(f.valorTotal) : '—'}</td>
+                      <td>{f.consumo ? `${fmtNum(f.consumo)} ${f.unidadConsumo || ''}` : '—'}</td>
+                      <td>{f.fechaVencimiento || '—'}</td>
+                      <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <a className="btn-outline" href={f.archivo?.src} target="_blank" rel="noopener noreferrer">Ver</a>
+                        {isAdmin && esExtraible(f.archivo) && (
+                          <button
+                            className="btn-outline" onClick={() => handleExtraerUna(f)} disabled={extrayendo || extrayendoTodo}
+                            title={f.errorExtraccion || undefined}
+                            style={{ borderColor: f.errorExtraccion ? 'var(--red)' : undefined }}
+                          >
+                            {extrayendo ? 'Extrayendo…' : f.errorExtraccion ? '⚠ Reintentar' : f.extraido ? 'Re-extraer' : 'Extraer datos'}
+                          </button>
+                        )}
                         {isAdmin && <button className="btn-outline" onClick={() => handleEliminar(f)}>Eliminar</button>}
                       </td>
                     </tr>
