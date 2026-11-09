@@ -129,65 +129,98 @@ function propietariosColombia(fila) {
 }
 
 /**
- * Inmuebles "DISPONIBLE" (sin arrendatario activo) de la hoja COLOMBIA —
- * BS-ACTIVOS solo trae contratos vigentes, así que estos son los únicos
- * inactivos/vacantes del archivo. No tienen número de contrato real (la
- * columna trae el texto "N" de placeholder), así que el id se arma a
- * partir de dirección + municipio en vez de un consecutivo.
+ * Arma un inmueble a partir de una fila de la hoja COLOMBIA (mismas
+ * columnas para "DISPONIBLE" y "ACTIVOS" — solo cambia qué tan completo
+ * está: un disponible no tiene arrendatario, uno activo sí).
  */
-function parseDisponibles(wb) {
+function inmuebleDesdeColombia(fila, id, activo, inquilino) {
+  const direccion = limpiar(fila[3]);
+  const municipio = limpiar(fila[4]);
+  const listaPropietarios = propietariosColombia(fila);
+  return {
+    id,
+    contrato: parseNumber(fila[1]) || null,
+    activo,
+    propietario: listaPropietarios[0]?.nombre || null,
+    inquilino,
+    direccion,
+    municipio,
+    municipioNormalizado: normalizarMunicipio(municipio),
+    barrio: null,
+    urbanizacion: null,
+    estrato: null,
+    zona: null,
+    clase: limpiar(fila[9]),
+    tipoContrato: null,
+    destinacionComercial: null,
+    grupo: limpiar(fila[8]),
+    asesor: null,
+    auxiliar: null,
+    canon: parseNumber(fila[24]),
+    valorAdministracion: 0,
+    porcentajeComision: 0,
+    comisionCanon: 0,
+    comisionMasIva: 0,
+    duracionContrato: null,
+    fechaContrato: null,
+    fechaFinContrato: null,
+    fechaIncremento: null,
+    telInmueble: null,
+    aseguradora: limpiar(fila[25]),
+    siniestrado: false,
+    propietarios: listaPropietarios,
+    inquilinoDoc: {
+      nroId: null, celular: null, telOtros: null, telOf: null, email: null,
+      emailFacturacion: null, direccionCorrespondencia: null, municipioCorrespondencia: null,
+    },
+    coarrendatarios: [],
+    observaciones: [limpiar(fila[10]), fila[6] ? `${fila[6]} m²` : null].filter(Boolean).join(' · ') || null,
+    raw: Object.fromEntries(fila.map((v, idx) => [`col_${idx}`, v]).filter(([, v]) => v !== null && v !== undefined)),
+  };
+}
+
+/**
+ * Inmuebles de la hoja COLOMBIA que no van a estar duplicados en
+ * BS-ACTIVOS:
+ *  - "DISPONIBLE" (sin arrendatario): BS-ACTIVOS solo trae contratos
+ *    vigentes, así que estos son los únicos inactivos/vacantes del
+ *    archivo.
+ *  - "ACTIVOS" cuyo número de contrato NO aparece en BS-ACTIVOS: pasa
+ *    cuando un inmueble se vuelve a arrendar y lo marcan activo en
+ *    COLOMBIA, pero el reporte BS-ACTIVOS (con el detalle completo:
+ *    seguro, cuentas, coarrendatarios...) todavía no se regeneró para
+ *    incluirlo — sin esto, ese contrato no aparecía en ningún lado.
+ * Ninguno de los dos trae número de contrato siempre confiable (a veces
+ * es el texto "N" de placeholder), así que si no es un número real el id
+ * se arma a partir de dirección + municipio en vez de un consecutivo.
+ */
+function parseExtrasColombia(wb, idsEnBSActivos) {
   const nombreHoja = wb.SheetNames.find((n) => COLOMBIA_HOJA_RE.test(n.trim()));
   if (!nombreHoja) return [];
   const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, defval: null }).slice(1);
 
-  return filas
+  const idDeFila = (fila, prefijo, i) => {
+    const numero = parseNumber(fila[1]);
+    if (numero) return String(numero);
+    const direccion = limpiar(fila[3]);
+    const municipio = limpiar(fila[4]);
+    const idBase = [direccion, municipio].filter(Boolean).map((s) => slugifyId(stripAccents(s))).join('-');
+    return `${prefijo}-${idBase || i}`;
+  };
+
+  const disponibles = filas
     .filter((fila) => limpiar(fila[0])?.toUpperCase() === 'DISPONIBLE')
-    .map((fila, i) => {
-      const direccion = limpiar(fila[3]);
-      const municipio = limpiar(fila[4]);
-      const idBase = [direccion, municipio].filter(Boolean).map((s) => slugifyId(stripAccents(s))).join('-');
-      const listaPropietarios = propietariosColombia(fila);
-      return {
-        id: `disp-${idBase || i}`,
-        contrato: null,
-        activo: false,
-        propietario: listaPropietarios[0]?.nombre || null,
-        inquilino: null,
-        direccion,
-        municipio,
-        municipioNormalizado: normalizarMunicipio(municipio),
-        barrio: null,
-        urbanizacion: null,
-        estrato: null,
-        zona: null,
-        clase: limpiar(fila[9]),
-        tipoContrato: null,
-        destinacionComercial: null,
-        grupo: limpiar(fila[8]),
-        asesor: null,
-        auxiliar: null,
-        canon: parseNumber(fila[24]),
-        valorAdministracion: 0,
-        porcentajeComision: 0,
-        comisionCanon: 0,
-        comisionMasIva: 0,
-        duracionContrato: null,
-        fechaContrato: null,
-        fechaFinContrato: null,
-        fechaIncremento: null,
-        telInmueble: null,
-        aseguradora: limpiar(fila[25]),
-        siniestrado: false,
-        propietarios: listaPropietarios,
-        inquilinoDoc: {
-          nroId: null, celular: null, telOtros: null, telOf: null, email: null,
-          emailFacturacion: null, direccionCorrespondencia: null, municipioCorrespondencia: null,
-        },
-        coarrendatarios: [],
-        observaciones: [limpiar(fila[10]), fila[6] ? `${fila[6]} m²` : null].filter(Boolean).join(' · ') || null,
-        raw: Object.fromEntries(fila.map((v, idx) => [`col_${idx}`, v]).filter(([, v]) => v !== null && v !== undefined)),
-      };
-    });
+    .map((fila, i) => inmuebleDesdeColombia(fila, idDeFila(fila, 'disp', i), false, null));
+
+  const huerfanosActivos = filas
+    .filter((fila) => {
+      if (limpiar(fila[0])?.toUpperCase() !== 'ACTIVOS') return false;
+      const numero = parseNumber(fila[1]);
+      return !numero || !idsEnBSActivos.has(String(numero));
+    })
+    .map((fila, i) => inmuebleDesdeColombia(fila, idDeFila(fila, 'act', i), true, limpiar(fila[2])));
+
+  return [...disponibles, ...huerfanosActivos];
 }
 
 export function parseInmueblesBuffer(bufferOrBytes) {
@@ -251,9 +284,11 @@ export function parseInmueblesBuffer(bufferOrBytes) {
   });
 
   // BS-ACTIVOS solo trae contratos vigentes — los inmuebles "DISPONIBLE"
-  // (sin arrendatario, los únicos inactivos del archivo) salen de la hoja
-  // COLOMBIA y se agregan aparte, sin pisar ningún contrato activo.
-  return [...activos, ...parseDisponibles(wb)];
+  // (sin arrendatario) y los "ACTIVOS" que todavía no están en BS-ACTIVOS
+  // salen de la hoja COLOMBIA y se agregan aparte, sin pisar ningún
+  // contrato que ya venga de BS-ACTIVOS.
+  const idsEnBSActivos = new Set(activos.map((r) => r.id));
+  return [...activos, ...parseExtrasColombia(wb, idsEnBSActivos)];
 }
 
 /** Link de Google Maps a partir de la dirección + municipio (el archivo no trae coordenadas). */
