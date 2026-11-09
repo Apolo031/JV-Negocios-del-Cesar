@@ -138,6 +138,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Facturas de servicios públicos (energía, acueducto, gas...) de cada
+    // contrato de Zona Centro Inmobiliaria, un documento por archivo subido.
+    match /facturas_servicios/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Candados de coordinación entre procesos (ej. "importLock" para que una
     // importación de contratos desde la pantalla y una desde un script de
     // servidor no corran al mismo tiempo). No son datos del negocio.

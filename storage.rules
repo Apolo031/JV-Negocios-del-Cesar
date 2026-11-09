@@ -38,6 +38,20 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Facturas de servicios públicos (energía, acueducto, gas...) de cada
+    // contrato de Zona Centro Inmobiliaria. La mayoría son PDF, pero
+    // algunas llegan como foto (image/*) o como Word (.docx) — se acepta
+    // lo mismo que el resto del panel ya acepta en otras partes.
+    match /facturas_servicios/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.token.role == 'admin'
+                   && request.resource.size < 8 * 1024 * 1024   // máx. 8 MB por archivo
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType == 'application/pdf'
+                       || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
