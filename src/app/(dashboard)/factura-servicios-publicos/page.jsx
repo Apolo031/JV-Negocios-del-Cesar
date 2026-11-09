@@ -5,7 +5,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from 'fireb
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { MONTH_NAMES_FULL, fmtMoney, fmtNum } from '@/lib/dataHelpers';
+import { MONTH_NAMES_FULL, fmtMoney, fmtNum, fmtPct } from '@/lib/dataHelpers';
 import { parseNombreFactura, SERVICIOS } from '@/lib/facturasServiciosParser';
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -276,22 +276,29 @@ export default function FacturaServiciosPublicosPage() {
     [facturas]
   );
 
-  const filtradas = useMemo(() => {
+  // Igual que "filtradas" pero SIN el filtro de periodo — es la base del
+  // consolidado mes a mes, que por definición necesita ver todos los meses
+  // a la vez (respeta municipio/servicio/búsqueda para poder comparar solo
+  // un municipio o un servicio si así lo filtras).
+  const filtradasSinPeriodo = useMemo(() => {
     const busq = fBusqueda.trim().toLowerCase();
-    return facturas
-      .filter((f) => {
-        if (fPeriodo !== '__ALL__' && f.periodo !== fPeriodo) return false;
-        if (fMunicipio !== '__ALL__' && f.municipio !== fMunicipio) return false;
-        if (fServicio !== '__ALL__' && f.servicio !== fServicio) return false;
-        if (busq) {
-          const info = inmueblesPorContrato.get(f.contrato);
-          const hay = `${f.contrato} ${info?.propietario || ''} ${info?.direccion || ''} ${f.municipio || ''}`.toLowerCase();
-          if (!hay.includes(busq)) return false;
-        }
-        return true;
-      })
+    return facturas.filter((f) => {
+      if (fMunicipio !== '__ALL__' && f.municipio !== fMunicipio) return false;
+      if (fServicio !== '__ALL__' && f.servicio !== fServicio) return false;
+      if (busq) {
+        const info = inmueblesPorContrato.get(f.contrato);
+        const hay = `${f.contrato} ${info?.propietario || ''} ${info?.direccion || ''} ${f.municipio || ''}`.toLowerCase();
+        if (!hay.includes(busq)) return false;
+      }
+      return true;
+    });
+  }, [facturas, fMunicipio, fServicio, fBusqueda, inmueblesPorContrato]);
+
+  const filtradas = useMemo(() => {
+    return filtradasSinPeriodo
+      .filter((f) => fPeriodo === '__ALL__' || f.periodo === fPeriodo)
       .sort((a, b) => b.periodo.localeCompare(a.periodo) || (a.municipio || '').localeCompare(b.municipio || '', 'es') || Number(a.contrato) - Number(b.contrato));
-  }, [facturas, fPeriodo, fMunicipio, fServicio, fBusqueda, inmueblesPorContrato]);
+  }, [filtradasSinPeriodo, fPeriodo]);
 
   const resumenGasto = useMemo(() => {
     const total = filtradas.reduce((s, f) => s + (f.valorTotal || 0), 0);
@@ -304,6 +311,26 @@ export default function FacturaServiciosPublicosPage() {
     const filas = Object.entries(porServicio).sort((a, b) => b[1] - a[1]);
     return { total, conDatos, filas };
   }, [filtradas]);
+
+  // Consolidado mes a mes: total de gasto por periodo, en orden cronológico,
+  // comparado contra el mes inmediatamente anterior — para detectar cuándo
+  // subió el gasto de un mes a otro, sin importar el filtro de periodo.
+  const consolidadoMensual = useMemo(() => {
+    const porPeriodo = {};
+    filtradasSinPeriodo.forEach((f) => {
+      if (!f.valorTotal) return;
+      porPeriodo[f.periodo] = (porPeriodo[f.periodo] || 0) + f.valorTotal;
+    });
+    const periodosOrdenados = Object.keys(porPeriodo).sort();
+    return periodosOrdenados.map((p, i) => {
+      const valor = porPeriodo[p];
+      const anterior = i > 0 ? porPeriodo[periodosOrdenados[i - 1]] : null;
+      const variacionPct = anterior ? ((valor - anterior) / anterior) * 100 : null;
+      return { periodo: p, valor, anterior, variacionPct, subio: anterior !== null && valor > anterior };
+    });
+  }, [filtradasSinPeriodo]);
+
+  const ultimaSubida = consolidadoMensual.length > 0 ? consolidadoMensual[consolidadoMensual.length - 1] : null;
 
   const pendientesExtraccion = useMemo(() => facturas.filter((f) => !f.extraido && esExtraible(f.archivo)), [facturas]);
 
@@ -376,6 +403,42 @@ export default function FacturaServiciosPublicosPage() {
               ? `Extrayendo… (${progresoExtraccion?.done || 0}/${progresoExtraccion?.total || 0})`
               : `Extraer ${pendientesExtraccion.length} factura(s) pendiente(s)`}
           </button>
+        </div>
+      )}
+
+      {consolidadoMensual.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Consolidado mensual</h3></div>
+          {ultimaSubida?.subio && (
+            <div className="alert-card sev-high" style={{ marginBottom: 14 }}>
+              <div className="alert-icon">▲</div>
+              <div className="alert-body">
+                <div className="alert-title">El gasto subió respecto al mes anterior</div>
+                <div className="alert-desc">
+                  {periodoLabel(ultimaSubida.periodo)}: {fmtMoney(ultimaSubida.valor)} — {fmtPct(ultimaSubida.variacionPct)} más
+                  que {periodoLabel(consolidadoMensual[consolidadoMensual.length - 2]?.periodo)} ({fmtMoney(ultimaSubida.anterior)}).
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr><th style={{ textAlign: 'left' }}>Mes</th><th>Gasto total</th><th>Variación vs. mes anterior</th></tr>
+              </thead>
+              <tbody>
+                {[...consolidadoMensual].reverse().map((m) => (
+                  <tr key={m.periodo}>
+                    <td className="name">{periodoLabel(m.periodo)}</td>
+                    <td>{fmtMoney(m.valor)}</td>
+                    <td style={{ color: m.subio ? 'var(--red)' : m.variacionPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: m.subio ? 700 : 400 }}>
+                      {m.variacionPct !== null ? `${m.subio ? '▲' : '▼'} ${fmtPct(m.variacionPct)}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
