@@ -253,6 +253,8 @@ export default function FacturaServiciosPublicosPage() {
   const [extrayendoId, setExtrayendoId] = useState(null);
   const [extrayendoTodo, setExtrayendoTodo] = useState(false);
   const [progresoExtraccion, setProgresoExtraccion] = useState(null);
+  const [borrandoTodo, setBorrandoTodo] = useState(false);
+  const [progresoBorrado, setProgresoBorrado] = useState(null);
 
   const [fPeriodo, setFPeriodo] = useState('__ALL__');
   const [fMunicipio, setFMunicipio] = useState('__ALL__');
@@ -388,6 +390,32 @@ export default function FacturaServiciosPublicosPage() {
       // si ya no existe en Storage, igual se quita el registro
     }
     await deleteDoc(doc(db, 'facturas_servicios', f.id));
+  }
+
+  /** Borra TODAS las facturas (sin importar el filtro) y sus archivos en Storage. No se puede deshacer. */
+  async function handleEliminarTodas() {
+    const total = facturas.length;
+    if (total === 0) return;
+    const ok = window.confirm(
+      `¿Eliminar las ${total} facturas cargadas (todos los periodos y municipios)? Esto también borra los archivos subidos. No se puede deshacer.`
+    );
+    if (!ok) return;
+
+    setBorrandoTodo(true);
+    setProgresoBorrado({ done: 0, total });
+    let done = 0;
+    for (const f of facturas) {
+      try {
+        if (f.archivo?.path) await deleteObject(ref(storage, f.archivo.path));
+      } catch (err) {
+        // si ya no existe en Storage, igual se borra el registro
+      }
+      await deleteDoc(doc(db, 'facturas_servicios', f.id));
+      done += 1;
+      setProgresoBorrado({ done, total });
+    }
+    setBorrandoTodo(false);
+    setProgresoBorrado(null);
   }
 
   function limpiarFiltros() {
@@ -551,7 +579,14 @@ export default function FacturaServiciosPublicosPage() {
       <div className="panel">
         <div className="panel-head">
           <h3>Facturas</h3>
-          <span className="hint">{filtradas.length} {filtradas.length === 1 ? 'registro' : 'registros'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="hint">{filtradas.length} {filtradas.length === 1 ? 'registro' : 'registros'}</span>
+            {isAdmin && facturas.length > 0 && (
+              <button className="btn-outline" type="button" onClick={handleEliminarTodas} disabled={borrandoTodo} style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>
+                {borrandoTodo ? `Eliminando… (${progresoBorrado?.done || 0}/${progresoBorrado?.total || 0})` : `🗑 Eliminar todas (${facturas.length})`}
+              </button>
+            )}
+          </div>
         </div>
         {loading ? (
           <div className="empty-note">Cargando…</div>
