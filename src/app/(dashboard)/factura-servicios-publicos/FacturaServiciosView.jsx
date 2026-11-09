@@ -378,6 +378,78 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
 
   const ultimaSubida = consolidadoMensual.length > 0 ? consolidadoMensual[consolidadoMensual.length - 1] : null;
 
+  const promedioMensual = useMemo(
+    () => (consolidadoMensual.length > 0 ? consolidadoMensual.reduce((s, m) => s + m.valor, 0) / consolidadoMensual.length : 0),
+    [consolidadoMensual]
+  );
+  const proyeccionAnual = promedioMensual * 12;
+  const mesMayorGasto = useMemo(
+    () => (consolidadoMensual.length > 0 ? consolidadoMensual.reduce((max, m) => (m.valor > max.valor ? m : max), consolidadoMensual[0]) : null),
+    [consolidadoMensual]
+  );
+
+  // Igual que "consolidadoMensual" pero desglosado por servicio — para ver
+  // mes a mes cuál servicio sube o baja, no solo el total. Respeta el mismo
+  // desglose EPM (energía/acueducto/alcantarillado) que "Gasto por servicio".
+  const consolidadoPorServicio = useMemo(() => {
+    const porPeriodoServicio = {};
+    filtradasSinPeriodo.forEach((f) => {
+      if (!porPeriodoServicio[f.periodo]) porPeriodoServicio[f.periodo] = {};
+      const bucket = porPeriodoServicio[f.periodo];
+      if (f.desglose?.length) {
+        f.desglose.forEach((d) => {
+          if (!d.valor) return;
+          bucket[d.servicio] = (bucket[d.servicio] || 0) + d.valor;
+        });
+      } else if (f.valorTotal) {
+        bucket[f.servicio] = (bucket[f.servicio] || 0) + f.valorTotal;
+      }
+    });
+    const periodosOrdenados = Object.keys(porPeriodoServicio).sort();
+    const servicios = [...new Set(Object.values(porPeriodoServicio).flatMap((b) => Object.keys(b)))].sort((a, b) => a.localeCompare(b, 'es'));
+    const filas = servicios.map((servicio) => {
+      const valores = periodosOrdenados.map((p) => porPeriodoServicio[p][servicio] || 0);
+      const ultimo = valores[valores.length - 1] || 0;
+      const anterior = valores.length > 1 ? valores[valores.length - 2] : null;
+      const variacionPct = anterior ? ((ultimo - anterior) / anterior) * 100 : null;
+      return { servicio, valores, ultimo, anterior, variacionPct, subio: anterior !== null && ultimo > anterior };
+    });
+    return { periodos: periodosOrdenados, filas };
+  }, [filtradasSinPeriodo]);
+
+  const servicioMayorIncremento = useMemo(() => {
+    const conVariacion = consolidadoPorServicio.filas.filter((f) => f.variacionPct !== null && f.subio);
+    if (conVariacion.length === 0) return null;
+    return conVariacion.reduce((max, f) => (f.variacionPct > max.variacionPct ? f : max), conVariacion[0]);
+  }, [consolidadoPorServicio]);
+
+  // Ranking de contratos por gasto acumulado — para ver de un vistazo cuáles
+  // inmuebles pesan más en la cuenta y cuáles subieron de un mes a otro.
+  const topContratos = useMemo(() => {
+    const porContrato = {};
+    filtradasSinPeriodo.forEach((f) => {
+      if (!f.contrato) return;
+      if (!porContrato[f.contrato]) porContrato[f.contrato] = { total: 0, facturas: 0, porPeriodo: {} };
+      const entry = porContrato[f.contrato];
+      const valor = f.valorTotal || 0;
+      entry.total += valor;
+      entry.facturas += 1;
+      entry.porPeriodo[f.periodo] = (entry.porPeriodo[f.periodo] || 0) + valor;
+    });
+    const periodosOrdenados = [...new Set(filtradasSinPeriodo.map((f) => f.periodo))].sort();
+    const ultimoPeriodo = periodosOrdenados[periodosOrdenados.length - 1];
+    const anteriorPeriodo = periodosOrdenados[periodosOrdenados.length - 2];
+    return Object.entries(porContrato)
+      .map(([contrato, v]) => {
+        const ultimo = v.porPeriodo[ultimoPeriodo] || 0;
+        const anterior = anteriorPeriodo ? v.porPeriodo[anteriorPeriodo] || 0 : null;
+        const variacionPct = anterior ? ((ultimo - anterior) / anterior) * 100 : null;
+        return { contrato, total: v.total, facturas: v.facturas, ultimo, anterior, variacionPct, subio: anterior !== null && ultimo > anterior };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [filtradasSinPeriodo]);
+
   const pendientesExtraccion = useMemo(() => facturasDelEspacio.filter((f) => !f.extraido && esExtraible(f.archivo)), [facturasDelEspacio]);
 
   async function handleExtraerUna(f) {
@@ -494,6 +566,22 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
         {!municipioFiltro && <div className="kpi"><div className="label">Municipios</div><div className="value">{municipiosOpciones.length}</div></div>}
       </div>
 
+      {consolidadoMensual.length > 0 && (
+        <div className="kpi-row">
+          <div className="kpi"><div className="label">Promedio mensual</div><div className="value">{fmtMoney(promedioMensual)}</div></div>
+          <div className="kpi"><div className="label">Proyección anual</div><div className="value">{fmtMoney(proyeccionAnual)}</div></div>
+          {mesMayorGasto && (
+            <div className="kpi"><div className="label">Mes de mayor gasto</div><div className="value" style={{ fontSize: 16 }}>{periodoLabel(mesMayorGasto.periodo)}</div></div>
+          )}
+          {servicioMayorIncremento && (
+            <div className="kpi">
+              <div className="label">Servicio con mayor alza</div>
+              <div className="value" style={{ fontSize: 16, color: 'var(--red)' }}>{servicioMayorIncremento.servicio} ▲ {fmtPct(servicioMayorIncremento.variacionPct)}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       <SubirFacturas inmueblesPorContrato={inmueblesPorContrato} municipioLabel={municipioLabel} />
 
       {isAdmin && pendientesExtraccion.length > 0 && (
@@ -567,6 +655,80 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 10 }}>
             Calculado sobre {resumenGasto.conDatos} de {filtradas.length} facturas del filtro actual que ya tienen datos extraídos.
+          </div>
+        </div>
+      )}
+
+      {consolidadoPorServicio.filas.length > 0 && consolidadoPorServicio.periodos.length > 1 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Gasto por servicio — mes a mes</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14 }}>
+            Compara cada servicio mes a mes para ver cuál sube o baja. El último mes en rojo cuando subió respecto al anterior.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Servicio</th>
+                  {consolidadoPorServicio.periodos.map((p) => <th key={p}>{periodoLabel(p)}</th>)}
+                  <th>Variación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consolidadoPorServicio.filas.map((fila) => (
+                  <tr key={fila.servicio}>
+                    <td className="name">{fila.servicio}</td>
+                    {fila.valores.map((v, i) => (
+                      <td
+                        key={i}
+                        style={i === fila.valores.length - 1 ? { color: fila.subio ? 'var(--red)' : undefined, fontWeight: fila.subio ? 700 : 400 } : undefined}
+                      >
+                        {v > 0 ? fmtMoney(v) : '—'}
+                      </td>
+                    ))}
+                    <td style={{ color: fila.subio ? 'var(--red)' : fila.variacionPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: fila.subio ? 700 : 400 }}>
+                      {fila.variacionPct !== null ? `${fila.subio ? '▲' : '▼'} ${fmtPct(fila.variacionPct)}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {topContratos.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Top contratos por gasto</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14 }}>
+            Los 10 contratos con mayor gasto acumulado en el filtro actual — útil para detectar consumos altos o incrementos puntuales.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Contrato</th><th style={{ textAlign: 'left' }}>Propietario / dirección</th>
+                  <th>Facturas</th><th>Gasto total</th><th>Último mes</th><th>Variación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topContratos.map((c) => {
+                  const info = inmueblesPorContrato.get(c.contrato);
+                  return (
+                    <tr key={c.contrato}>
+                      <td>{c.contrato}</td>
+                      <td className="name">{info ? `${info.propietario || '—'} · ${info.direccion || ''}` : '—'}</td>
+                      <td>{c.facturas}</td>
+                      <td><b>{fmtMoney(c.total)}</b></td>
+                      <td>{c.ultimo > 0 ? fmtMoney(c.ultimo) : '—'}</td>
+                      <td style={{ color: c.subio ? 'var(--red)' : c.variacionPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: c.subio ? 700 : 400 }}>
+                        {c.variacionPct !== null ? `${c.subio ? '▲' : '▼'} ${fmtPct(c.variacionPct)}` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
