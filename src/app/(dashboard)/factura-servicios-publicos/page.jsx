@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebaseClient';
@@ -393,6 +394,33 @@ export default function FacturaServiciosPublicosPage() {
     setFPeriodo('__ALL__'); setFMunicipio('__ALL__'); setFServicio('__ALL__'); setFBusqueda('');
   }
 
+  /** Una fila por cada servicio real (una factura EPM aporta varias filas, una por cada servicio que traiga desglosado). */
+  function handleExportExcel() {
+    const rows = [];
+    filtradas.forEach((f) => {
+      const info = inmueblesPorContrato.get(f.contrato);
+      const base = {
+        Periodo: periodoLabel(f.periodo), Contrato: f.contrato,
+        Propietario: info?.propietario || null, Dirección: info?.direccion || f.archivo?.name || null,
+        Municipio: f.municipio || info?.municipio || null, Subunidad: f.subunidad || null,
+        Empresa: f.empresa || null, 'Número factura': f.numeroFactura || null,
+        'Periodo facturado': f.periodoFacturado || null, 'Fecha vencimiento': f.fechaVencimiento || null,
+        'Valor total factura': f.valorTotal || null, 'Confianza extracción': f.confianzaExtraccion || null,
+        Archivo: f.archivo?.name || null,
+      };
+      if (f.desglose?.length) {
+        f.desglose.forEach((d) => {
+          rows.push({ ...base, Servicio: d.servicio, Consumo: d.consumo, Unidad: d.unidadConsumo, 'Valor del servicio': d.valor });
+        });
+      } else {
+        rows.push({ ...base, Servicio: f.servicio, Consumo: f.consumo ?? null, Unidad: f.unidadConsumo || null, 'Valor del servicio': f.valorTotal || null });
+      }
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Facturas');
+    XLSX.writeFile(wb, `facturas_servicios_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   return (
     <div>
       <div className="topbar">
@@ -486,7 +514,10 @@ export default function FacturaServiciosPublicosPage() {
       <div className="panel">
         <div className="panel-head">
           <h3>Filtros</h3>
-          <button className="btn-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>
+            <button className="btn-outline" type="button" onClick={handleExportExcel} disabled={filtradas.length === 0}>⭳ Descargar Excel</button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
