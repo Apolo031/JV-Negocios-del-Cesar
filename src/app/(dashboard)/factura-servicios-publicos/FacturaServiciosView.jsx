@@ -450,6 +450,60 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
       .slice(0, 10);
   }, [filtradasSinPeriodo]);
 
+  // Consumo físico (kWh, m³...) por servicio, dentro del filtro de periodo
+  // actual — para el gráfico de barras, igual que "Gasto por servicio" pero
+  // en unidades en vez de pesos.
+  const resumenConsumo = useMemo(() => {
+    const porServicio = {};
+    filtradas.forEach((f) => {
+      f.desglose?.forEach((d) => {
+        if (d.consumo == null || !d.unidadConsumo) return;
+        if (!porServicio[d.servicio]) porServicio[d.servicio] = { consumo: 0, unidad: d.unidadConsumo, valor: 0 };
+        porServicio[d.servicio].consumo += d.consumo;
+        porServicio[d.servicio].valor += d.valor || 0;
+      });
+    });
+    return Object.entries(porServicio)
+      .map(([servicio, v]) => ({ servicio, ...v, precioUnitario: v.consumo ? v.valor / v.consumo : null }))
+      .sort((a, b) => b.consumo - a.consumo);
+  }, [filtradas]);
+
+  // Consumo y tarifa ($/unidad) mes a mes por servicio — sirve para separar
+  // si un gasto subió porque se consumió más, o porque subió la tarifa del
+  // servicio (dos problemas distintos, dos decisiones distintas).
+  const consolidadoConsumoPorServicio = useMemo(() => {
+    const porPeriodoServicio = {};
+    filtradasSinPeriodo.forEach((f) => {
+      f.desglose?.forEach((d) => {
+        if (d.consumo == null || !d.unidadConsumo) return;
+        if (!porPeriodoServicio[f.periodo]) porPeriodoServicio[f.periodo] = {};
+        const bucket = porPeriodoServicio[f.periodo];
+        if (!bucket[d.servicio]) bucket[d.servicio] = { consumo: 0, valor: 0, unidad: d.unidadConsumo };
+        bucket[d.servicio].consumo += d.consumo;
+        bucket[d.servicio].valor += d.valor || 0;
+      });
+    });
+    const periodosOrdenados = Object.keys(porPeriodoServicio).sort();
+    const servicios = [...new Set(Object.values(porPeriodoServicio).flatMap((b) => Object.keys(b)))].sort((a, b) => a.localeCompare(b, 'es'));
+    const filas = servicios.map((servicio) => {
+      const unidad = periodosOrdenados.map((p) => porPeriodoServicio[p][servicio]?.unidad).find(Boolean) || '';
+      const celdas = periodosOrdenados.map((p) => {
+        const b = porPeriodoServicio[p][servicio];
+        return { consumo: b?.consumo || 0, precioUnitario: b?.consumo ? b.valor / b.consumo : null };
+      });
+      const ultimo = celdas[celdas.length - 1];
+      const anterior = celdas.length > 1 ? celdas[celdas.length - 2] : null;
+      const variacionConsumoPct = anterior?.consumo ? ((ultimo.consumo - anterior.consumo) / anterior.consumo) * 100 : null;
+      const variacionPrecioPct = anterior?.precioUnitario && ultimo.precioUnitario ? ((ultimo.precioUnitario - anterior.precioUnitario) / anterior.precioUnitario) * 100 : null;
+      return {
+        servicio, unidad, celdas,
+        variacionConsumoPct, subioConsumo: variacionConsumoPct !== null && variacionConsumoPct > 0,
+        variacionPrecioPct, subioPrecio: variacionPrecioPct !== null && variacionPrecioPct > 0,
+      };
+    });
+    return { periodos: periodosOrdenados, filas };
+  }, [filtradasSinPeriodo]);
+
   const pendientesExtraccion = useMemo(() => facturasDelEspacio.filter((f) => !f.extraido && esExtraible(f.archivo)), [facturasDelEspacio]);
 
   async function handleExtraerUna(f) {
@@ -659,6 +713,32 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
         </div>
       )}
 
+      {resumenConsumo.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Consumo por servicio</h3></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {resumenConsumo.map((r) => {
+              const max = Math.max(1, ...resumenConsumo.map((x) => x.consumo));
+              return (
+                <div key={r.servicio} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 100, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{r.servicio}</div>
+                  <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 22 }}>
+                    <div style={{ width: `${(r.consumo / max) * 100}%`, background: 'var(--gold)', height: '100%', minWidth: 3 }} />
+                  </div>
+                  <div style={{ width: 170, flexShrink: 0, fontSize: 12.5, textAlign: 'right' }}>
+                    <b>{fmtNum(r.consumo)} {r.unidad}</b>
+                    {r.precioUnitario ? <span style={{ color: 'var(--text-dimmer)' }}> · {fmtMoney(r.precioUnitario)}/{r.unidad}</span> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', marginTop: 10 }}>
+            Suma el consumo físico (kWh, m³…) de cada servicio en el filtro actual, con el valor promedio pagado por unidad.
+          </div>
+        </div>
+      )}
+
       {consolidadoPorServicio.filas.length > 0 && consolidadoPorServicio.periodos.length > 1 && (
         <div className="panel">
           <div className="panel-head"><h3>Gasto por servicio — mes a mes</h3></div>
@@ -688,6 +768,50 @@ export default function FacturaServiciosView({ municipioFiltro = null, municipio
                     ))}
                     <td style={{ color: fila.subio ? 'var(--red)' : fila.variacionPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: fila.subio ? 700 : 400 }}>
                       {fila.variacionPct !== null ? `${fila.subio ? '▲' : '▼'} ${fmtPct(fila.variacionPct)}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {consolidadoConsumoPorServicio.filas.length > 0 && consolidadoConsumoPorServicio.periodos.length > 1 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Consumo y tarifa por servicio — mes a mes</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14 }}>
+            El consumo (kWh, m³…) separado de la tarifa ($ por unidad) — para distinguir si el gasto sube porque se
+            consume más, o porque subió el precio del servicio.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Servicio</th>
+                  {consolidadoConsumoPorServicio.periodos.map((p) => <th key={p}>{periodoLabel(p)}</th>)}
+                  <th>Var. consumo</th><th>Var. tarifa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consolidadoConsumoPorServicio.filas.map((fila) => (
+                  <tr key={fila.servicio}>
+                    <td className="name">{fila.servicio}{fila.unidad ? <span style={{ color: 'var(--text-dimmer)' }}> ({fila.unidad})</span> : null}</td>
+                    {fila.celdas.map((c, i) => (
+                      <td key={i} style={i === fila.celdas.length - 1 ? { color: fila.subioConsumo ? 'var(--red)' : undefined, fontWeight: fila.subioConsumo ? 700 : 400 } : undefined}>
+                        {c.consumo > 0 ? (
+                          <>
+                            {fmtNum(c.consumo)} {fila.unidad}
+                            {c.precioUnitario ? <div style={{ fontSize: 10.5, color: 'var(--text-dimmer)' }}>{fmtMoney(c.precioUnitario)}/{fila.unidad}</div> : null}
+                          </>
+                        ) : '—'}
+                      </td>
+                    ))}
+                    <td style={{ color: fila.subioConsumo ? 'var(--red)' : fila.variacionConsumoPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: fila.subioConsumo ? 700 : 400 }}>
+                      {fila.variacionConsumoPct !== null ? `${fila.subioConsumo ? '▲' : '▼'} ${fmtPct(fila.variacionConsumoPct)}` : '—'}
+                    </td>
+                    <td style={{ color: fila.subioPrecio ? 'var(--red)' : fila.variacionPrecioPct !== null ? 'var(--green)' : 'var(--text-dimmer)', fontWeight: fila.subioPrecio ? 700 : 400 }}>
+                      {fila.variacionPrecioPct !== null ? `${fila.subioPrecio ? '▲' : '▼'} ${fmtPct(fila.variacionPrecioPct)}` : '—'}
                     </td>
                   </tr>
                 ))}
