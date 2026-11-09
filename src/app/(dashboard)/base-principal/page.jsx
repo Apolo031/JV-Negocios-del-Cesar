@@ -282,6 +282,13 @@ export default function BasePrincipalPage() {
   const [fMunicipio, setFMunicipio] = useState('__ALL__');
   const [fClase, setFClase] = useState('__ALL__');
   const [fEstado, setFEstado] = useState('__ALL__');
+  const [sortBy, setSortBy] = useState(null); // null = orden por defecto (municipio); o 'contrato' / 'canon'
+  const [sortDir, setSortDir] = useState('asc');
+
+  function toggleSort(campo) {
+    if (sortBy === campo) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortBy(campo); setSortDir('asc'); }
+  }
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'inmuebles'), (snap) => {
@@ -331,8 +338,16 @@ export default function BasePrincipalPage() {
         }
         return true;
       })
-      .sort((a, b) => (a.municipio || '').localeCompare(b.municipio || '', 'es') || (a.direccion || '').localeCompare(b.direccion || '', 'es'));
-  }, [registros, fMunicipio, fClase, fEstado, fBusqueda]);
+      .sort((a, b) => {
+        if (sortBy === 'contrato' || sortBy === 'canon') {
+          const va = Number(a[sortBy]) || 0;
+          const vb = Number(b[sortBy]) || 0;
+          const diff = va - vb;
+          return sortDir === 'asc' ? diff : -diff;
+        }
+        return (a.municipio || '').localeCompare(b.municipio || '', 'es') || (a.direccion || '').localeCompare(b.direccion || '', 'es');
+      });
+  }, [registros, fMunicipio, fClase, fEstado, fBusqueda, sortBy, sortDir]);
 
   function limpiarFiltros() {
     setFBusqueda(''); setFMunicipio('__ALL__'); setFClase('__ALL__'); setFEstado('__ALL__');
@@ -427,8 +442,15 @@ export default function BasePrincipalPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Contrato</th><th style={{ textAlign: 'left' }}>Propietario</th><th style={{ textAlign: 'left' }}>Arrendatario</th>
-                  <th style={{ textAlign: 'left' }}>Dirección</th><th>Municipio</th><th>Clase</th><th>Canon</th><th>Estado</th><th></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('contrato')}>
+                    Contrato {sortBy === 'contrato' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th style={{ textAlign: 'left' }}>Propietario</th><th style={{ textAlign: 'left' }}>Arrendatario</th>
+                  <th style={{ textAlign: 'left' }}>Dirección</th><th>Municipio</th><th>Clase</th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('canon')}>
+                    Canon {sortBy === 'canon' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th>Estado</th><th></th>
                 </tr>
               </thead>
               <tbody>
