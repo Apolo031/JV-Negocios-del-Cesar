@@ -37,11 +37,20 @@ async function extraerDatosFactura(f, getIdToken) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'No se pudo extraer la información');
   const e = data.extraido;
+  // Una factura de un solo servicio trae un único elemento en "servicios";
+  // una combinada (ej. EPM) trae uno por cada servicio con su propio valor.
+  const desglose = Array.isArray(e.servicios)
+    ? e.servicios.map((s) => ({
+        servicio: s.servicio || 'Otro',
+        consumo: typeof s.consumo === 'number' ? s.consumo : null,
+        unidadConsumo: s.unidad_consumo || null,
+        valor: typeof s.valor === 'number' ? s.valor : null,
+      }))
+    : [];
   await updateDoc(doc(db, 'facturas_servicios', f.id), {
     empresa: e.empresa || null,
     valorTotal: typeof e.valor_total === 'number' ? e.valor_total : null,
-    consumo: typeof e.consumo === 'number' ? e.consumo : null,
-    unidadConsumo: e.unidad_consumo || null,
+    desglose,
     periodoFacturado: e.periodo_facturado || null,
     fechaVencimiento: e.fecha_vencimiento || null,
     numeroFactura: e.numero_factura || null,
@@ -304,9 +313,18 @@ export default function FacturaServiciosPublicosPage() {
     const total = filtradas.reduce((s, f) => s + (f.valorTotal || 0), 0);
     const conDatos = filtradas.filter((f) => f.extraido).length;
     const porServicio = {};
+    // Si la factura trae desglose (ej. EPM: energía + acueducto + alcantarillado
+    // en un solo archivo), cada servicio aporta su propio valor; si no, se usa
+    // el total completo bajo el único servicio del archivo.
     filtradas.forEach((f) => {
-      if (!f.valorTotal) return;
-      porServicio[f.servicio] = (porServicio[f.servicio] || 0) + f.valorTotal;
+      if (f.desglose?.length) {
+        f.desglose.forEach((d) => {
+          if (!d.valor) return;
+          porServicio[d.servicio] = (porServicio[d.servicio] || 0) + d.valor;
+        });
+      } else if (f.valorTotal) {
+        porServicio[f.servicio] = (porServicio[f.servicio] || 0) + f.valorTotal;
+      }
     });
     const filas = Object.entries(porServicio).sort((a, b) => b[1] - a[1]);
     return { total, conDatos, filas };
@@ -529,9 +547,27 @@ export default function FacturaServiciosPublicosPage() {
                       <td>{f.contrato}</td>
                       <td className="name">{info ? `${info.propietario || '—'} · ${info.direccion || ''}` : <span style={{ color: 'var(--red)' }}>Contrato no encontrado</span>}</td>
                       <td>{f.municipio || info?.municipio || '—'}</td>
-                      <td>{f.servicio}{f.subunidad ? <div style={{ fontSize: 10.5, color: 'var(--text-dimmer)' }}>{f.subunidad}</div> : null}</td>
-                      <td>{f.valorTotal ? fmtMoney(f.valorTotal) : '—'}</td>
-                      <td>{f.consumo ? `${fmtNum(f.consumo)} ${f.unidadConsumo || ''}` : '—'}</td>
+                      {f.desglose?.length > 1 ? (
+                        <>
+                          <td style={{ fontSize: 11.5, lineHeight: 1.6 }}>
+                            {f.desglose.map((d, i) => <div key={i}>{d.servicio}</div>)}
+                            {f.subunidad && <div style={{ fontSize: 10.5, color: 'var(--text-dimmer)' }}>{f.subunidad}</div>}
+                          </td>
+                          <td style={{ fontSize: 11.5, lineHeight: 1.6 }}>
+                            {f.desglose.map((d, i) => <div key={i}>{d.valor ? fmtMoney(d.valor) : '—'}</div>)}
+                            <div style={{ fontWeight: 700, borderTop: '1px solid var(--border)', marginTop: 2, paddingTop: 2 }}>{fmtMoney(f.valorTotal)}</div>
+                          </td>
+                          <td style={{ fontSize: 11.5, lineHeight: 1.6 }}>
+                            {f.desglose.map((d, i) => <div key={i}>{d.consumo ? `${fmtNum(d.consumo)} ${d.unidadConsumo || ''}` : '—'}</div>)}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{f.servicio}{f.subunidad ? <div style={{ fontSize: 10.5, color: 'var(--text-dimmer)' }}>{f.subunidad}</div> : null}</td>
+                          <td>{f.valorTotal ? fmtMoney(f.valorTotal) : '—'}</td>
+                          <td>{(f.desglose?.[0]?.consumo ?? f.consumo) ? `${fmtNum(f.desglose?.[0]?.consumo ?? f.consumo)} ${f.desglose?.[0]?.unidadConsumo || f.unidadConsumo || ''}` : '—'}</td>
+                        </>
+                      )}
                       <td>{f.fechaVencimiento || '—'}</td>
                       <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <a className="btn-outline" href={f.archivo?.src} target="_blank" rel="noopener noreferrer">Ver</a>

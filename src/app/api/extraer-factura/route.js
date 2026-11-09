@@ -12,19 +12,26 @@ function extractJson(text) {
   return JSON.parse(match ? match[0] : cleaned);
 }
 
-const PROMPT = `Esta es una factura de un servicio público colombiano (energía, acueducto/alcantarillado, gas o un combinado como EPM). Extrae los datos y responde EXCLUSIVAMENTE en formato JSON (sin texto adicional, sin fila de código) con esta estructura exacta:
+const PROMPT = `Esta es una factura de servicios públicos colombiana. Algunas facturas son de UN SOLO servicio (ej. solo energía); otras, como las de EPM, combinan varios servicios en una misma factura (energía, acueducto, alcantarillado, y a veces un rubro adicional tipo "otras entidades") — en ese caso, cada servicio trae su propio consumo y su propio valor dentro de una tabla o resumen de facturación.
+
+Extrae los datos y responde EXCLUSIVAMENTE en formato JSON (sin texto adicional, sin fila de código) con esta estructura exacta:
 {
   "empresa": "Nombre de la empresa que emite la factura (ej. EPM, Air-e, Alcanos, Vanti, acueducto municipal)",
-  "servicio": "Uno de: Energía, Acueducto, Gas, EPM, Agua y luz, Todas, Otro",
-  "valor_total": número entero en pesos colombianos (el total a pagar, sin puntos ni comas ni símbolo $), o null si no aparece,
-  "consumo": número (la cantidad consumida en el periodo, ej. kWh o m3), o null si no aparece o la factura combina varios servicios con consumos distintos,
-  "unidad_consumo": "kWh", "m3" u otra unidad tal como aparece, o null,
+  "valor_total": número entero en pesos colombianos (el TOTAL GENERAL a pagar de toda la factura, sin puntos ni comas ni símbolo $), o null si no aparece,
   "periodo_facturado": texto tal como aparece el periodo de consumo o facturación (ej. "01/09/2026 a 30/09/2026"), o null,
   "fecha_vencimiento": fecha límite de pago en formato "YYYY-MM-DD", o null si no aparece,
-  "numero_factura": número o código de factura/cuenta contrato, o null,
+  "numero_factura": número o código de factura/cuenta/contrato, o null,
+  "servicios": [
+    {
+      "servicio": "Uno de: Energía, Acueducto, Alcantarillado, Gas, Otro",
+      "consumo": número (la cantidad consumida en el periodo, ej. kWh o m3), o null si ese servicio no tiene consumo (ej. un cargo fijo o "otras entidades"),
+      "unidad_consumo": "kWh", "m3" u otra unidad tal como aparece, o null,
+      "valor": número entero en pesos colombianos — el valor a pagar DE ESE SERVICIO específico (no el total general), o null si no aparece desglosado
+    }
+  ],
   "confianza": "Alta", "Media" o "Baja" según qué tan seguro estás de los valores extraídos
 }
-Si la factura trae varios periodos o cortes, usa el más reciente. Si algún dato no aparece o no se puede leer con claridad, usa null en vez de inventarlo.`;
+Si la factura es de un solo servicio, "servicios" trae un único elemento. Si la factura combina varios (como EPM), un elemento por cada servicio que traiga su propio valor en el desglose — no inventes un servicio que no aparezca. Si algún dato no aparece o no se puede leer con claridad, usa null en vez de inventarlo. Si la factura trae varios periodos o cortes, usa el más reciente.`;
 
 export async function POST(request) {
   try {
@@ -80,7 +87,7 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 600,
+        max_tokens: 900,
         messages: [{ role: 'user', content: [archivoBlock, { type: 'text', text: PROMPT }] }],
       }),
     });

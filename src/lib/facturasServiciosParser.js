@@ -11,7 +11,7 @@
 
 import { stripAccents } from './importHelpers';
 
-export const SERVICIOS = ['Energía', 'Acueducto', 'Gas', 'EPM', 'Agua y luz', 'Todas', 'Sin especificar'];
+export const SERVICIOS = ['Energía', 'Acueducto', 'Alcantarillado', 'Gas', 'EPM', 'Agua y luz', 'Todas', 'Otro', 'Sin especificar'];
 
 const SERVICIO_KEYWORDS = [
   [/ENERGI/, 'Energía'],
