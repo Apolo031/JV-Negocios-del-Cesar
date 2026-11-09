@@ -13,14 +13,18 @@
 // NAVEGADOR (la carga va directo a Firestore desde el cliente).
 
 import * as XLSX from 'xlsx';
-import { readWorkbook, parseNumber, parseDate, stripAccents } from './importHelpers';
+import { readWorkbook, parseNumber, parseDate, stripAccents, slugifyId } from './importHelpers';
 
 const HOJA_RE = /^BS-ACTIVOS/i;
+const COLOMBIA_HOJA_RE = /^COLOMBIA/i;
 
 function limpiar(v) {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
-  return s === '' || s === '/ /' || s === '##########' ? null : s;
+  // "#N/A" sale cuando una celda de la hoja COLOMBIA es un VLOOKUP contra el
+  // número de contrato y el inmueble está "DISPONIBLE" (sin contrato real,
+  // solo el placeholder "N") — la fórmula no encuentra nada que buscar.
+  return s === '' || s === '/ /' || s === '##########' || s.toUpperCase() === '#N/A' ? null : s;
 }
 
 function esVerdadero(v) {
@@ -104,6 +108,88 @@ function filaCompleta(row) {
   return out;
 }
 
+/**
+ * Propietarios de una fila de la hoja COLOMBIA (hasta 6, cada uno con su
+ * propio % — mismo concepto que `propietarios()` para BS-ACTIVOS, pero esta
+ * hoja no trae ni documento ni contacto del dueño, solo nombre y %).
+ * Se lee por POSICIÓN de columna (no por nombre de encabezado): esa hoja
+ * repite encabezados como "PROPETARIO"/"PORCENTAJE" seis veces y dos
+ * columnas quedan sin nombre, así que XLSX no les puede dar una llave única
+ * y legible — la posición es lo único estable.
+ */
+function propietariosColombia(fila) {
+  const lista = [];
+  // M,N  O,P  Q,R  S,T  U,V  W,X → columnas 12/13 .. 22/23 (0-based)
+  for (let i = 0; i < 6; i++) {
+    const nombre = limpiar(fila[12 + i * 2]);
+    if (!nombre) continue;
+    lista.push({ nombre, participacion: parseNumber(fila[13 + i * 2]) * 100 });
+  }
+  return lista;
+}
+
+/**
+ * Inmuebles "DISPONIBLE" (sin arrendatario activo) de la hoja COLOMBIA —
+ * BS-ACTIVOS solo trae contratos vigentes, así que estos son los únicos
+ * inactivos/vacantes del archivo. No tienen número de contrato real (la
+ * columna trae el texto "N" de placeholder), así que el id se arma a
+ * partir de dirección + municipio en vez de un consecutivo.
+ */
+function parseDisponibles(wb) {
+  const nombreHoja = wb.SheetNames.find((n) => COLOMBIA_HOJA_RE.test(n.trim()));
+  if (!nombreHoja) return [];
+  const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, defval: null }).slice(1);
+
+  return filas
+    .filter((fila) => limpiar(fila[0])?.toUpperCase() === 'DISPONIBLE')
+    .map((fila, i) => {
+      const direccion = limpiar(fila[3]);
+      const municipio = limpiar(fila[4]);
+      const idBase = [direccion, municipio].filter(Boolean).map((s) => slugifyId(stripAccents(s))).join('-');
+      const listaPropietarios = propietariosColombia(fila);
+      return {
+        id: `disp-${idBase || i}`,
+        contrato: null,
+        activo: false,
+        propietario: listaPropietarios[0]?.nombre || null,
+        inquilino: null,
+        direccion,
+        municipio,
+        municipioNormalizado: normalizarMunicipio(municipio),
+        barrio: null,
+        urbanizacion: null,
+        estrato: null,
+        zona: null,
+        clase: limpiar(fila[9]),
+        tipoContrato: null,
+        destinacionComercial: null,
+        grupo: limpiar(fila[8]),
+        asesor: null,
+        auxiliar: null,
+        canon: parseNumber(fila[24]),
+        valorAdministracion: 0,
+        porcentajeComision: 0,
+        comisionCanon: 0,
+        comisionMasIva: 0,
+        duracionContrato: null,
+        fechaContrato: null,
+        fechaFinContrato: null,
+        fechaIncremento: null,
+        telInmueble: null,
+        aseguradora: limpiar(fila[25]),
+        siniestrado: false,
+        propietarios: listaPropietarios,
+        inquilinoDoc: {
+          nroId: null, celular: null, telOtros: null, telOf: null, email: null,
+          emailFacturacion: null, direccionCorrespondencia: null, municipioCorrespondencia: null,
+        },
+        coarrendatarios: [],
+        observaciones: [limpiar(fila[10]), fila[6] ? `${fila[6]} m²` : null].filter(Boolean).join(' · ') || null,
+        raw: Object.fromEntries(fila.map((v, idx) => [`col_${idx}`, v]).filter(([, v]) => v !== null && v !== undefined)),
+      };
+    });
+}
+
 export function parseInmueblesBuffer(bufferOrBytes) {
   const wb = readWorkbook(bufferOrBytes);
   const nombreHoja = wb.SheetNames.find((n) => HOJA_RE.test(n.trim()));
@@ -112,7 +198,7 @@ export function parseInmueblesBuffer(bufferOrBytes) {
   }
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { defval: null });
 
-  return rows
+  const activos = rows
     .filter((r) => r.Contrato !== null && r.Contrato !== undefined && r.Contrato !== '')
     .map((row) => {
     const listaPropietarios = propietarios(row);
@@ -163,6 +249,11 @@ export function parseInmueblesBuffer(bufferOrBytes) {
       raw: filaCompleta(row),
     };
   });
+
+  // BS-ACTIVOS solo trae contratos vigentes — los inmuebles "DISPONIBLE"
+  // (sin arrendatario, los únicos inactivos del archivo) salen de la hoja
+  // COLOMBIA y se agregan aparte, sin pisar ningún contrato activo.
+  return [...activos, ...parseDisponibles(wb)];
 }
 
 /** Link de Google Maps a partir de la dirección + municipio (el archivo no trae coordenadas). */

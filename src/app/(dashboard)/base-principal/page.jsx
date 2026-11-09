@@ -402,7 +402,7 @@ export default function BasePrincipalPage() {
                   return (
                     <Fragment key={r.id}>
                       <tr>
-                        <td>{r.contrato}</td>
+                        <td>{r.contrato ?? '—'}</td>
                         <td className="name">
                           {r.propietario || '—'}
                           {(r.propietarios?.length || 0) > 1 && <span className="pill neu" style={{ marginLeft: 6 }}>+{r.propietarios.length - 1}</span>}
