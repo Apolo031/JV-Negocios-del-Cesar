@@ -34,6 +34,7 @@ const SECTIONS = [
     title: 'Zona Centro inmobiliaria',
     items: [
       { href: '/base-principal', label: 'Base principal', icon: '🏢' },
+      { href: '/factura-servicios-publicos', label: 'Factura servicios públicos', icon: '🧾' },
     ],
   },
   {
