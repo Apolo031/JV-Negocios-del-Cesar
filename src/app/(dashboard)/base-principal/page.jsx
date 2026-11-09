@@ -2,8 +2,9 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, doc, getDocs, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebaseClient';
+import { collection, doc, getDocs, onSnapshot, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtMoney, fmtNum } from '@/lib/dataHelpers';
 import { parseInmueblesBuffer, urlMapa } from '@/lib/inmueblesParser';
@@ -57,6 +58,95 @@ function PropietarioCard({ p, index }) {
         <Campo label="Tipo de cuenta" value={p.tipoCuenta} />
         <Campo label="Cuenta" value={p.cuenta} />
       </div>
+    </div>
+  );
+}
+
+const MAX_FOTOS = 2;
+const MAX_FOTO_BYTES = 8 * 1024 * 1024;
+
+async function subirFotoInmueble(contratoId, file) {
+  const path = `inmuebles/${contratoId}/${Date.now()}-${file.name}`;
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, file, { contentType: file.type });
+  const src = await getDownloadURL(fileRef);
+  return { src, name: file.name, path };
+}
+
+/** Hasta 2 fotos por contrato, para identificar el inmueble de un vistazo. */
+function FotosInmueble({ r, isAdmin }) {
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState('');
+  const fotos = r.fotos || [];
+
+  async function handleSubir(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Solo se aceptan imágenes.'); return; }
+    if (file.size > MAX_FOTO_BYTES) { setError('La foto pesa más de 8 MB.'); return; }
+    setSubiendo(true);
+    setError('');
+    try {
+      const foto = await subirFotoInmueble(r.id, file);
+      await updateDoc(doc(db, 'inmuebles', r.id), { fotos: [...fotos, foto] });
+    } catch (err) {
+      setError('No se pudo subir la foto: ' + err.message);
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  async function handleEliminarFoto(foto) {
+    try {
+      await deleteObject(ref(storage, foto.path));
+    } catch (err) {
+      // Si ya no existe en Storage, igual se quita de la lista del contrato.
+    }
+    await updateDoc(doc(db, 'inmuebles', r.id), { fotos: fotos.filter((f) => f.path !== foto.path) });
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+        Fotos del inmueble
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {fotos.map((f, i) => (
+          <div key={f.path || i} style={{ position: 'relative' }}>
+            <a href={f.src} target="_blank" rel="noopener noreferrer">
+              <img
+                src={f.src} alt={f.name || 'Foto del inmueble'}
+                style={{ width: 140, height: 105, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }}
+              />
+            </a>
+            {isAdmin && (
+              <button
+                type="button" onClick={() => handleEliminarFoto(f)}
+                title="Eliminar foto"
+                style={{
+                  position: 'absolute', top: 4, right: 4, padding: '1px 6px', fontSize: 11, lineHeight: '16px',
+                  background: 'rgba(20,20,24,0.75)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 5, cursor: 'pointer',
+                }}
+              >✕</button>
+            )}
+          </div>
+        ))}
+        {isAdmin && fotos.length < MAX_FOTOS && (
+          <label
+            style={{
+              width: 140, height: 105, border: '2px dashed var(--border)', borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: subiendo ? 'default' : 'pointer',
+              fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 8,
+            }}
+          >
+            {subiendo ? 'Subiendo…' : '+ Agregar foto'}
+            <input type="file" accept="image/*" onChange={handleSubir} disabled={subiendo} style={{ display: 'none' }} />
+          </label>
+        )}
+        {fotos.length === 0 && !isAdmin && <div className="empty-note">Sin fotos.</div>}
+      </div>
+      {error && <div className="login-error" style={{ marginTop: 8 }}>{error}</div>}
     </div>
   );
 }
@@ -334,6 +424,8 @@ export default function BasePrincipalPage() {
                               {mapa && <a className="btn-outline" href={mapa} target="_blank" rel="noopener noreferrer">📍 Ver en mapa</a>}
                               {isAdmin && <button className="btn-outline" onClick={() => handleEliminar(r.id)}>Eliminar contrato</button>}
                             </div>
+
+                            <FotosInmueble r={r} isAdmin={isAdmin} />
 
                             <Seccion titulo="Inmueble">
                               <Campo label="Dirección" value={r.direccion} />
