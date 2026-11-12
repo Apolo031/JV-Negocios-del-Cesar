@@ -38,26 +38,53 @@ function Seccion({ titulo, children }) {
   );
 }
 
-function PropietarioCard({ p, index }) {
+/** Propietarios del inmueble en UN solo cuadro: nombre, %, canon que le corresponde y quién lo administra. */
+function TablaPropietarios({ r }) {
+  const filas = (r.distribucionCanon?.length
+    ? r.distribucionCanon.map((p) => ({ nombre: p.nombre, porcentaje: p.porcentaje, canon: p.canon, administradoPor: p.administradoPor }))
+    : (r.propietarios || []).map((p) => ({ nombre: p.nombre, porcentaje: p.participacion, canon: p.canon, administradoPor: p.administradoPor }))
+  );
+  const totalPct = +filas.reduce((a, p) => a + (Number(p.porcentaje) || 0), 0).toFixed(2);
+  const totalCanon = filas.reduce((a, p) => a + (Number(p.canon) || 0), 0);
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--surface)' }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-        {index + 1}. {p.nombre} {p.participacion ? <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>· {p.participacion}%</span> : null}
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+        {filas.length > 1 ? `Propietarios (${filas.length} dueños)` : 'Propietario'}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '2px 14px' }}>
-        <Campo label="Documento" value={p.documento} />
-        <Campo label="Dirección" value={p.direccion} />
-        <Campo label="Municipio" value={p.municipio} />
-        <Campo label="Teléfono residencia" value={p.telefonoRes} />
-        <Campo label="Teléfono oficina" value={p.telefonoOf} />
-        <Campo label="Celular" value={p.celular} />
-        <Campo label="Email" value={p.email} />
-        <Campo label="Email facturación" value={p.emailFacturacion} />
-        <Campo label="Paga a (beneficiario)" value={p.beneficiario} />
-        <Campo label="Banco" value={p.banco} />
-        <Campo label="Tipo de cuenta" value={p.tipoCuenta} />
-        <Campo label="Cuenta" value={p.cuenta} />
-      </div>
+      {filas.length === 0 ? (
+        <div className="empty-note">Sin propietario registrado.</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Propietario</th>
+                <th>%</th>
+                <th>Canon</th>
+                <th style={{ textAlign: 'left' }}>Administrado por</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((p, i) => (
+                <tr key={i}>
+                  <td className="name">{i + 1}. {p.nombre}</td>
+                  <td>{p.porcentaje ? `${p.porcentaje}%` : '—'}</td>
+                  <td>{p.canon ? fmtMoney(p.canon) : '—'}</td>
+                  <td style={{ textAlign: 'left' }}>{p.administradoPor || '—'}</td>
+                </tr>
+              ))}
+              {filas.length > 1 && (
+                <tr style={{ fontWeight: 700 }}>
+                  <td className="name">Total</td>
+                  <td>{totalPct}%</td>
+                  <td>{fmtMoney(totalCanon)}</td>
+                  <td></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -515,40 +542,7 @@ export default function BasePrincipalPage() {
                               <Campo label="Mes de incremento" value={r.mesNombre || r.mesIncremento} />
                             </Seccion>
 
-                            <div style={{ marginBottom: 16 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                                {(r.propietarios?.length || 0) > 1 ? `Propietarios (${r.propietarios.length} dueños)` : 'Propietario'}
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {(r.propietarios || []).map((p, i) => <PropietarioCard key={i} p={p} index={i} />)}
-                                {(r.propietarios || []).length === 0 && <div className="empty-note">Sin propietario registrado.</div>}
-                              </div>
-                            </div>
-
-                            {(r.distribucionCanon?.length || 0) > 0 && (
-                              <div style={{ marginBottom: 16 }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                                  Distribución del canon por propietario
-                                </div>
-                                <div style={{ overflowX: 'auto' }}>
-                                  <table>
-                                    <thead>
-                                      <tr><th style={{ textAlign: 'left' }}>Propietario</th><th>%</th><th>Canon</th><th style={{ textAlign: 'left' }}>Administrado por</th></tr>
-                                    </thead>
-                                    <tbody>
-                                      {r.distribucionCanon.map((p, i) => (
-                                        <tr key={i}>
-                                          <td className="name">{p.nombre}</td>
-                                          <td>{p.porcentaje}%</td>
-                                          <td>{fmtMoney(p.canon)}</td>
-                                          <td style={{ textAlign: 'left' }}>{p.administradoPor || '—'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            )}
+                            <TablaPropietarios r={r} />
 
                             <Seccion titulo="Arrendatario">
                               <Campo label="Nombre" value={r.inquilino} />
