@@ -154,7 +154,7 @@ function FotosInmueble({ r, isAdmin }) {
 /** Compara contra lo que ya hay en Firestore y aplica el reemplazo completo (nuevos/actualizados + borra los que ya no están). */
 async function importarRegistros(registros, setProgress) {
   if (registros.length === 0) {
-    throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la hoja "BS-ACTIVOS...").');
+    throw new Error('No se reconoció ningún contrato en el archivo (se esperaba la hoja "COLOMBIA").');
   }
 
   const existentesSnap = await getDocs(collection(db, 'inmuebles'));
@@ -246,9 +246,9 @@ function ImportarInmuebles({ onImported }) {
     <div className="panel">
       <div className="panel-head"><h3>Importar / actualizar contratos</h3></div>
       <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-        Sube el Excel maestro de contratos (la hoja <b>BS-ACTIVOS</b>, el export completo del software de
-        arriendos), o actualiza directo desde la hoja de Google en vivo. Cada contrato queda guardado con
-        propietario, arrendatario, coarrendatarios, seguro y condiciones del contrato. <b>Esta carga reemplaza</b>{' '}
+        Sube el Excel maestro de contratos (se lee solo la hoja <b>COLOMBIA</b>), o actualiza directo desde la
+        hoja de Google en vivo. Cada contrato queda guardado con ocupación, sociedad, grupo, tipo de inmueble,
+        metros², canon al 100 %, propietarios (con su % y su canon), seguro con valor asegurado y prima, e incremento. <b>Esta carga reemplaza</b>{' '}
         todo lo que ya está guardado — si un contrato ya no aparece, se elimina de aquí también — así que
         siempre viene del archivo/hoja completa y actualizada, no solo de los contratos nuevos.
       </div>
@@ -355,13 +355,20 @@ export default function BasePrincipalPage() {
 
   function handleExportExcel() {
     const rows = filtrados.map((r) => ({
+      Ocupación: r.ocupacion || (r.activo ? 'ACTIVOS' : 'DISPONIBLE'),
       Contrato: r.contrato, Estado: r.activo ? 'Activo' : 'Inactivo',
+      Sociedad: r.sociedad, Grupo: r.grupo, 'Tipo de inmueble': r.tipoInmueble, 'Metros²': r.metros2, Observaciones: r.observacionesZc || r.observaciones,
       Propietarios: (r.propietarios || []).map((p) => `${p.nombre} (${p.participacion}%)`).join(' / ') || null,
       Arrendatario: r.inquilino,
-      Dirección: r.direccion, Municipio: r.municipio, Barrio: r.barrio, Clase: r.clase, 'Tipo de contrato': r.tipoContrato,
-      Canon: r.canon, 'Comisión + IVA': r.comisionMasIva, Aseguradora: r.aseguradora,
-      'Celular arrendatario': r.inquilinoDoc?.celular, 'Celular propietario': r.propietarios?.[0]?.celular,
-      'Fecha contrato': r.fechaContrato, 'Fecha fin contrato': r.fechaFinContrato, Asesor: r.asesor,
+      Dirección: r.direccion, Municipio: r.municipio,
+      'Canon 100%': r.canon,
+      ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((n) => {
+        const p = (r.distribucionCanon || [])[n - 1];
+        return [[`Propietario ${n}`, p?.nombre ?? null], [`% ${n}`, p ? p.porcentaje : null], [`Canon propietario ${n}`, p ? p.canon : null], [`Administrado por ${n}`, p?.administradoPor ?? null]];
+      })),
+      Aseguradora: r.seguro?.aseguradora || r.aseguradora, 'Valor asegurado': r.seguro?.valorAsegurado || null, 'Prima antes de IVA': r.seguro?.primaAntesIva || null,
+      'Incremento': r.incremento, 'Día incremento': r.diaIncremento, 'Mes incremento': r.mesNombre,
+      'Datos por revisar': (r.alertasDatos || []).join(' | ') || null,
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Inmuebles');
@@ -460,7 +467,12 @@ export default function BasePrincipalPage() {
                   return (
                     <Fragment key={r.id}>
                       <tr>
-                        <td>{r.contrato ?? '—'}</td>
+                        <td>
+                          {r.contrato ?? '—'}
+                          {(r.alertasDatos?.length || 0) > 0 && (
+                            <span title={r.alertasDatos.join('\n')} style={{ marginLeft: 6, color: 'var(--gold-light)', cursor: 'help' }}>⚠</span>
+                          )}
+                        </td>
                         <td className="name">
                           {r.propietario || '—'}
                           {(r.propietarios?.length || 0) > 1 && <span className="pill neu" style={{ marginLeft: 6 }}>+{r.propietarios.length - 1}</span>}
@@ -488,28 +500,19 @@ export default function BasePrincipalPage() {
                             <Seccion titulo="Inmueble">
                               <Campo label="Dirección" value={r.direccion} />
                               <Campo label="Municipio" value={r.municipio} />
-                              <Campo label="Barrio" value={r.barrio} />
-                              <Campo label="Urbanización" value={r.urbanizacion} />
-                              <Campo label="Estrato" value={r.estrato} />
-                              <Campo label="Zona" value={r.zona} />
-                              <Campo label="Clase" value={r.clase} />
-                              <Campo label="Destinación comercial" value={r.destinacionComercial} />
-                              <Campo label="Teléfono inmueble" value={r.telInmueble} />
+                              <Campo label="Tipo de inmueble" value={r.tipoInmueble} />
+                              <Campo label="Metros²" value={r.metros2} />
+                              <Campo label="Ocupación" value={r.ocupacion} />
+                              <Campo label="Uso / observaciones" value={r.observacionesZc} />
                             </Seccion>
 
                             <Seccion titulo="Contrato">
-                              <Campo label="Tipo de contrato" value={r.tipoContrato} />
-                              <Campo label="Duración" value={r.duracionContrato} />
-                              <Campo label="Fecha contrato" value={fmtFecha(r.fechaContrato)} />
-                              <Campo label="Fecha fin contrato" value={fmtFecha(r.fechaFinContrato)} />
-                              <Campo label="Fecha incremento" value={fmtFecha(r.fechaIncremento)} />
-                              <Campo label="Canon" value={fmtMoney(r.canon)} />
-                              <Campo label="Valor administración" value={fmtMoney(r.valorAdministracion)} />
-                              <Campo label="% comisión" value={r.porcentajeComision ? `${r.porcentajeComision}%` : null} />
-                              <Campo label="Comisión + IVA" value={fmtMoney(r.comisionMasIva)} />
+                              <Campo label="Canon 100%" value={fmtMoney(r.canon)} />
+                              <Campo label="Sociedad" value={r.sociedad} />
                               <Campo label="Grupo" value={r.grupo} />
-                              <Campo label="Asesor" value={r.asesor} />
-                              <Campo label="Auxiliar" value={r.auxiliar} />
+                              <Campo label="Incremento" value={r.incremento ? (/^\d+([.,]\d+)?$/.test(r.incremento) ? `${r.incremento}%` : r.incremento) : null} />
+                              <Campo label="Día de incremento" value={r.diaIncremento} />
+                              <Campo label="Mes de incremento" value={r.mesNombre || r.mesIncremento} />
                             </Seccion>
 
                             <div style={{ marginBottom: 16 }}>
@@ -522,30 +525,50 @@ export default function BasePrincipalPage() {
                               </div>
                             </div>
 
-                            <Seccion titulo="Arrendatario">
-                              <Campo label="Nombre" value={r.inquilino} />
-                              <Campo label="Documento" value={r.inquilinoDoc?.nroId} />
-                              <Campo label="Celular" value={r.inquilinoDoc?.celular} />
-                              <Campo label="Teléfono oficina" value={r.inquilinoDoc?.telOf} />
-                              <Campo label="Otros teléfonos" value={r.inquilinoDoc?.telOtros} />
-                              <Campo label="Email" value={r.inquilinoDoc?.email} />
-                              <Campo label="Email facturación" value={r.inquilinoDoc?.emailFacturacion} />
-                              <Campo label="Dirección correspondencia" value={r.inquilinoDoc?.direccionCorrespondencia} />
-                              <Campo label="Municipio correspondencia" value={r.inquilinoDoc?.municipioCorrespondencia} />
-                            </Seccion>
-
-                            {r.coarrendatarios?.length > 0 && (
-                              <Seccion titulo={`Coarrendatarios (${r.coarrendatarios.length})`}>
-                                {r.coarrendatarios.map((c, i) => (
-                                  <Campo key={i} label={`Coarrendatario ${i + 1}`} value={`${c.nombre}${c.celular ? ` · ${c.celular}` : ''}`} />
-                                ))}
-                              </Seccion>
+                            {(r.distribucionCanon?.length || 0) > 0 && (
+                              <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                                  Distribución del canon por propietario
+                                </div>
+                                <div style={{ overflowX: 'auto' }}>
+                                  <table>
+                                    <thead>
+                                      <tr><th style={{ textAlign: 'left' }}>Propietario</th><th>%</th><th>Canon</th><th style={{ textAlign: 'left' }}>Administrado por</th></tr>
+                                    </thead>
+                                    <tbody>
+                                      {r.distribucionCanon.map((p, i) => (
+                                        <tr key={i}>
+                                          <td className="name">{p.nombre}</td>
+                                          <td>{p.porcentaje}%</td>
+                                          <td>{fmtMoney(p.canon)}</td>
+                                          <td style={{ textAlign: 'left' }}>{p.administradoPor || '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
                             )}
 
-                            <Seccion titulo="Seguro">
-                              <Campo label="Aseguradora" value={r.aseguradora} />
-                              <Campo label="Siniestrado" value={r.siniestrado ? 'Sí' : 'No'} />
+                            <Seccion titulo="Arrendatario">
+                              <Campo label="Nombre" value={r.inquilino} />
                             </Seccion>
+
+                            
+
+                            <Seccion titulo="Seguro">
+                              <Campo label="Aseguradora" value={r.seguro?.aseguradora || r.aseguradora} />
+                              <Campo label="Valor asegurado" value={r.seguro?.valorAsegurado ? fmtMoney(r.seguro.valorAsegurado) : null} />
+                              <Campo label="Prima antes de IVA" value={r.seguro?.primaAntesIva ? fmtMoney(r.seguro.primaAntesIva) : null} />
+                            </Seccion>
+
+                            {(r.alertasDatos?.length || 0) > 0 && (
+                              <Seccion titulo="Datos por revisar en la hoja">
+                                <div style={{ gridColumn: '1 / -1', fontSize: 13, color: 'var(--gold-light)' }}>
+                                  {r.alertasDatos.map((a, i) => <div key={i}>⚠ {a}</div>)}
+                                </div>
+                              </Seccion>
+                            )}
 
                             {r.observaciones && (
                               <Seccion titulo="Observaciones">
