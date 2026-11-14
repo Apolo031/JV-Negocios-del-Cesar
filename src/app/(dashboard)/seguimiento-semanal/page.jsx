@@ -96,6 +96,28 @@ function agruparDesgloseOroPorTipo(cuadresDiarios, keySeleccionada) {
     .sort((a, b) => b.valor - a.valor);
 }
 
+/**
+ * Total de contratos de oro (todos los tipos juntos) de cada sucursal por
+ * separado, para el periodo seleccionado — gramos, valor y promedio propios
+ * de cada una, sin mezclarlos entre sucursales.
+ */
+function totalesOroPorSucursal(cuadresDiarios, keySeleccionada) {
+  const porSucursal = {};
+  cuadresDiarios.forEach((c) => {
+    if (!c.sucursal || !c.anio || !c.mes || !c.dia || !BRANCHES.includes(c.sucursal)) return;
+    if (keyDeCuadre(c) !== keySeleccionada) return;
+    if (!porSucursal[c.sucursal]) porSucursal[c.sucursal] = { gramos: 0, valor: 0 };
+    (c.desgloseOro || []).forEach((fila) => {
+      porSucursal[c.sucursal].gramos += fila.gramos || 0;
+      porSucursal[c.sucursal].valor += fila.valor || 0;
+    });
+  });
+  return BRANCHES.map((b) => {
+    const v = porSucursal[b] || { gramos: 0, valor: 0 };
+    return { sucursal: b, gramos: v.gramos, valor: v.valor, promedio: v.gramos ? v.valor / v.gramos : 0 };
+  });
+}
+
 function construirAlertas(actual, anterior) {
   const alertas = [];
   if (!actual) return alertas;
@@ -166,6 +188,7 @@ export default function SeguimientoSemanalPage() {
   const anterior = idx > 0 ? semanas[idx - 1] : null;
   const alertas = construirAlertas(actual, anterior);
   const desgloseOro = agruparDesgloseOroPorTipo(cuadresDiarios, key);
+  const totalesOro = totalesOroPorSucursal(cuadresDiarios, key).filter((t) => t.gramos > 0);
 
   const totalUtilidad = BRANCHES.reduce((s, b) => s + actual.porSucursal[b].utilidad, 0);
   const totalContratado = BRANCHES.reduce((s, b) => s + actual.porSucursal[b].valor_contratado, 0);
@@ -252,15 +275,35 @@ export default function SeguimientoSemanalPage() {
                     return <td key={b}>{totalSucursal ? fmtGr(totalSucursal) : '—'}</td>;
                   })}
                   <td>{fmtGr(desgloseOro.reduce((s, d) => s + d.gramos, 0))}</td>
-                  <td>{fmtMoney(desgloseOro.reduce((s, d) => s + d.valor, 0))}</td>
-                  <td>
-                    {(() => {
-                      const totalGramos = desgloseOro.reduce((s, d) => s + d.gramos, 0);
-                      const totalValor = desgloseOro.reduce((s, d) => s + d.valor, 0);
-                      return fmtMoney(totalGramos ? totalValor / totalGramos : 0);
-                    })()}
-                  </td>
+                  <td colSpan={2} style={{ color: 'var(--text-dimmer)', fontWeight: 400, fontSize: 11 }}>Ver valor y promedio por sucursal abajo</td>
                 </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {totalesOro.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Total contratos de oro por sucursal</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14 }}>
+            Gramos, valor y promedio de cada sucursal por separado para el periodo del {actual.label} — sin mezclar
+            entre sucursales, cada una con su propio dato.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr><th style={{ textAlign: 'left' }}>Sucursal</th><th>Gramos</th><th>Valor</th><th>Promedio</th></tr>
+              </thead>
+              <tbody>
+                {totalesOro.map((t) => (
+                  <tr key={t.sucursal}>
+                    <td className="name">{t.sucursal}</td>
+                    <td>{fmtGr(t.gramos)}</td>
+                    <td><b>{fmtMoney(t.valor)}</b></td>
+                    <td>{fmtMoney(t.promedio)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
