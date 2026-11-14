@@ -245,6 +245,22 @@ export default function SeguimientoSemanalPage() {
                     <td>{fmtMoney(d.promedio)}</td>
                   </tr>
                 ))}
+                <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                  <td className="name">TOTAL</td>
+                  {BRANCHES.map((b) => {
+                    const totalSucursal = desgloseOro.reduce((s, d) => s + (d.porSucursal[b] || 0), 0);
+                    return <td key={b}>{totalSucursal ? fmtGr(totalSucursal) : '—'}</td>;
+                  })}
+                  <td>{fmtGr(desgloseOro.reduce((s, d) => s + d.gramos, 0))}</td>
+                  <td>{fmtMoney(desgloseOro.reduce((s, d) => s + d.valor, 0))}</td>
+                  <td>
+                    {(() => {
+                      const totalGramos = desgloseOro.reduce((s, d) => s + d.gramos, 0);
+                      const totalValor = desgloseOro.reduce((s, d) => s + d.valor, 0);
+                      return fmtMoney(totalGramos ? totalValor / totalGramos : 0);
+                    })()}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
