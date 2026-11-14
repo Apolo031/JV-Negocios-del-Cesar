@@ -5,7 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import ChartCanvas from '@/components/charts/ChartCanvas';
 import {
   BRANCHES, BRANCH_COLOR, EDIT_METRICS, METRIC_LABEL, MONTH_NAMES,
-  fmtMoney, fmtPct, fmtConcepto, weekKey, weekLabel,
+  fmtMoney, fmtPct, fmtConcepto, fmtGr, weekKey, weekLabel,
 } from '@/lib/dataHelpers';
 
 // Los 8 indicadores que trae el "Cuadre de caja" (ver /editar) — los mismos
@@ -30,6 +30,19 @@ function etiquetaRango(anio, mes, dia, anioFin, mesFin, diaFin) {
   return `${iniTxt} – ${fin.getDate()} ${MONTH_NAMES[fin.getMonth()]} ${fin.getFullYear()}`;
 }
 
+/** true si el cuadre cubre varios días (ej. un consolidado semanal) en vez de un solo día. */
+function esPeriodoCuadre(c) {
+  return !!(c.diaFin && (c.diaFin !== c.dia || c.mesFin !== c.mes || String(c.anioFin) !== String(c.anio)));
+}
+
+/** Misma clave de periodo (semana calendario, o rango propio si es un "consolidado" de varios días) que usa `agruparPorSemana`, pero reutilizable para volver a filtrar los cuadres crudos de un periodo ya elegido. */
+function keyDeCuadre(c) {
+  if (esPeriodoCuadre(c)) {
+    return `P_${c.anio}-${String(c.mes).padStart(2, '0')}-${String(c.dia).padStart(2, '0')}_${c.anioFin}-${String(c.mesFin).padStart(2, '0')}-${String(c.diaFin).padStart(2, '0')}`;
+  }
+  return weekKey(c.anio, c.mes, c.dia);
+}
+
 /**
  * Agrupa los cuadres de caja en periodos, sumando cada indicador por
  * sucursal. Un cuadre normal (de un solo día) se agrupa por semana
@@ -42,18 +55,13 @@ function agruparPorSemana(cuadresDiarios) {
   const mapa = {};
   cuadresDiarios.forEach((c) => {
     if (!c.sucursal || !c.anio || !c.mes || !c.dia || !BRANCHES.includes(c.sucursal)) return;
-    const esPeriodo = c.diaFin && (c.diaFin !== c.dia || c.mesFin !== c.mes || String(c.anioFin) !== String(c.anio));
-    let key, label, dias;
-    if (esPeriodo) {
-      key = `P_${c.anio}-${String(c.mes).padStart(2, '0')}-${String(c.dia).padStart(2, '0')}_${c.anioFin}-${String(c.mesFin).padStart(2, '0')}-${String(c.diaFin).padStart(2, '0')}`;
-      label = etiquetaRango(c.anio, c.mes, c.dia, c.anioFin, c.mesFin, c.diaFin);
+    const key = keyDeCuadre(c);
+    const label = esPeriodoCuadre(c) ? etiquetaRango(c.anio, c.mes, c.dia, c.anioFin, c.mesFin, c.diaFin) : weekLabel(key);
+    let dias = 1;
+    if (esPeriodoCuadre(c)) {
       const ini = new Date(c.anio, c.mes - 1, c.dia);
       const fin = new Date(c.anioFin, c.mesFin - 1, c.diaFin);
       dias = Math.max(1, Math.round((fin - ini) / 86400000) + 1);
-    } else {
-      key = weekKey(c.anio, c.mes, c.dia);
-      label = weekLabel(key);
-      dias = 1;
     }
     if (!mapa[key]) mapa[key] = { key, label, porSucursal: semanaVacia() };
     const dest = mapa[key].porSucursal[c.sucursal];
@@ -61,6 +69,31 @@ function agruparPorSemana(cuadresDiarios) {
     dest.dias += dias;
   });
   return Object.values(mapa).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/**
+ * Desglose "DETALLE CONTRATOS ORO" por tipo (ORO 14K NACIONAL, ORO 18K
+ * ITALIANO...) de los cuadres de caja del periodo seleccionado, sumado por
+ * sucursal — usa cada tipo como su propio "código" para poder comparar
+ * gramos/valor entre sucursales y entre semanas.
+ */
+function agruparDesgloseOroPorTipo(cuadresDiarios, keySeleccionada) {
+  const porTipo = {};
+  cuadresDiarios.forEach((c) => {
+    if (!c.sucursal || !c.anio || !c.mes || !c.dia || !BRANCHES.includes(c.sucursal)) return;
+    if (keyDeCuadre(c) !== keySeleccionada) return;
+    (c.desgloseOro || []).forEach((fila) => {
+      if (!fila?.descripcion) return;
+      if (!porTipo[fila.descripcion]) porTipo[fila.descripcion] = { gramos: 0, valor: 0, porSucursal: {} };
+      const dest = porTipo[fila.descripcion];
+      dest.gramos += fila.gramos || 0;
+      dest.valor += fila.valor || 0;
+      dest.porSucursal[c.sucursal] = (dest.porSucursal[c.sucursal] || 0) + (fila.gramos || 0);
+    });
+  });
+  return Object.entries(porTipo)
+    .map(([tipo, v]) => ({ tipo, gramos: v.gramos, valor: v.valor, promedio: v.gramos ? v.valor / v.gramos : 0, porSucursal: v.porSucursal }))
+    .sort((a, b) => b.valor - a.valor);
 }
 
 function construirAlertas(actual, anterior) {
@@ -132,6 +165,7 @@ export default function SeguimientoSemanalPage() {
   const actual = semanas[idx];
   const anterior = idx > 0 ? semanas[idx - 1] : null;
   const alertas = construirAlertas(actual, anterior);
+  const desgloseOro = agruparDesgloseOroPorTipo(cuadresDiarios, key);
 
   const totalUtilidad = BRANCHES.reduce((s, b) => s + actual.porSucursal[b].utilidad, 0);
   const totalContratado = BRANCHES.reduce((s, b) => s + actual.porSucursal[b].valor_contratado, 0);
@@ -184,6 +218,38 @@ export default function SeguimientoSemanalPage() {
           ))
         )}
       </div>
+
+      {desgloseOro.length > 0 && (
+        <div className="panel">
+          <div className="panel-head"><h3>Detalle contratos de oro por tipo</h3></div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14 }}>
+            Desglose de "DETALLE CONTRATOS ORO" de los cuadres de caja del periodo del {actual.label}, con cada tipo
+            (14K, 18K Italiano, 18K Nacional...) como su propio código para comparar entre sucursales.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Tipo</th>
+                  {BRANCHES.map((b) => <th key={b}>{b}</th>)}
+                  <th>Gramos</th><th>Valor</th><th>Promedio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {desgloseOro.map((d) => (
+                  <tr key={d.tipo}>
+                    <td className="name">{d.tipo}</td>
+                    {BRANCHES.map((b) => <td key={b}>{d.porSucursal[b] ? fmtGr(d.porSucursal[b]) : '—'}</td>)}
+                    <td><b>{fmtGr(d.gramos)}</b></td>
+                    <td>{fmtMoney(d.valor)}</td>
+                    <td>{fmtMoney(d.promedio)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
         {METRICAS.map((metric) => (

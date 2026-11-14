@@ -197,7 +197,7 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
           await guardarCuadreDiario(diaId, {
             sucursal: it.sucursalSel, anio: it.añoSel, mes: it.mesIdx + 1, dia: r.dia,
             ...(periodo ? { diaFin: r.diaFin, mesFin: r.mesFin, anioFin: Number(r.anioFin) } : { diaFin: null, mesFin: null, anioFin: null }),
-            valores: it.valores, actualizadoEn: Date.now(),
+            valores: it.valores, desgloseOro: r.detalle?.contratosOro?.filas || [], actualizadoEn: Date.now(),
           });
         }
       }
@@ -340,6 +340,34 @@ function PanelPdfCaja({ tipoEsperado, branch, year }) {
               {tipoEsperado === 'cuadre' && (
                 <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 8 }}>
                   Esto solo va a "Seguimiento semanal" — no modifica "Resumen general". Si ya habías cargado este mismo día antes, se reemplaza con estos valores.
+                </div>
+              )}
+
+              {it.resultado.detalle?.contratosOro?.filas?.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6 }}>Detalle contratos oro por tipo (del PDF)</div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr><th style={{ textAlign: 'left' }}>Descripción</th><th>Gramos</th><th>Valor</th><th>Promedio</th></tr>
+                      </thead>
+                      <tbody>
+                        {it.resultado.detalle.contratosOro.filas.map((f, i) => (
+                          <tr key={i}>
+                            <td className="name" style={{ fontSize: 12 }}>{f.descripcion}</td>
+                            <td style={{ fontSize: 12 }}>{f.gramos.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</td>
+                            <td style={{ fontSize: 12 }}>{f.valor.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</td>
+                            <td style={{ fontSize: 12 }}>{f.promedio.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {tipoEsperado === 'cuadre' && (
+                    <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6 }}>
+                      Este desglose se guarda junto con el cuadre y alimenta "Detalle contratos de oro por tipo" en Seguimiento semanal.
+                    </div>
+                  )}
                 </div>
               )}
             </>

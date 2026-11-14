@@ -58,6 +58,45 @@ function totalesDeSeccion(lines, encabezados) {
   return null;
 }
 
+/** Una línea de una tabla "DETALLE" es "de números" cuando TODOS sus tokens son números con el formato colombiano (ej. "2,70 450.000,00 166.666,67"). */
+function esFilaDeNumeros(line) {
+  const tokens = line.split(/\s+/);
+  return tokens.length > 0 && tokens.every((t) => NUM_RE.test(t));
+}
+
+/**
+ * Desglose fila por fila (no solo el TOTAL) de una tabla "DETALLE" — ej.
+ * cada tipo de oro (ORO 14K NACIONAL, ORO 18K ITALIANO...) de "DETALLE
+ * CONTRATOS ORO", con sus propios gramos/valor/promedio. La descripción de
+ * cada fila puede venir partida en 1 o varias líneas (así quedó compaginado
+ * el PDF cuando el nombre no cabe en una sola), seguida de una única línea
+ * con sus 3 números pegados.
+ */
+function filasDeSeccion(lines, encabezados) {
+  for (const encabezado of encabezados) {
+    const i = lines.indexOf(encabezado);
+    if (i === -1) continue;
+    const filas = [];
+    let descripcionActual = [];
+    for (let j = i + 1; j < lines.length && j < i + 60; j++) {
+      const l = lines[j];
+      if (l.startsWith('TOTAL:')) break;
+      if (/^Descripci/.test(l)) continue;
+      if (esFilaDeNumeros(l)) {
+        if (descripcionActual.length > 0) {
+          const nums = (l.match(/-?[\d.]+,\d{2}/g) || []).map(parseNumeroCol);
+          filas.push({ descripcion: descripcionActual.join(' '), gramos: nums[0] ?? 0, valor: nums[1] ?? 0, promedio: nums[2] ?? 0 });
+          descripcionActual = [];
+        }
+      } else {
+        descripcionActual.push(l);
+      }
+    }
+    return filas;
+  }
+  return [];
+}
+
 const BRANCH_KEYWORDS = [
   ['BARRANQUILLERA', 'Barranquilla'], ['BARRANQUILLA', 'Barranquilla'], ['CAUCASIA', 'Caucasia'], ['EURO', 'Euro'],
   ['HEROICA', 'Heroica'], ['SINU', 'Sinú'],
@@ -116,7 +155,7 @@ function extraerIndicadores(lines, headers) {
       valor_venta_plata: ventasPlata[ventasPlata.length - 1],
     },
     detalle: {
-      contratosOro: { gramos: oro[0], valorArticulos: oro[1], promedio: oro[2] },
+      contratosOro: { gramos: oro[0], valorArticulos: oro[1], promedio: oro[2], filas: filasDeSeccion(lines, headers.contratosOro) },
       contratosPlataGramos: { gramos: plataGramos[0], valorArticulos: plataGramos[1], promedio: plataGramos[2] },
       ventasOro: { grm: ventasOro[0], total: ventasOro[ventasOro.length - 1] },
       ventasPlataGramos: { grm: ventasPlata[0], total: ventasPlata[ventasPlata.length - 1] },
