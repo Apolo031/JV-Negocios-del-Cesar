@@ -64,6 +64,43 @@ function Avatar({ nombre, size = 22 }) {
   );
 }
 
+/** Días completos transcurridos entre una fecha (YYYY-MM-DD) y hoy. */
+function diasDesde(fechaISO) {
+  if (!fechaISO) return null;
+  const [y, m, d] = fechaISO.split('-').map(Number);
+  const inicio = new Date(y, m - 1, d);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((hoy - inicio) / 86400000));
+}
+
+function FechaInicioApertura({ aperturaId, fechaInicio, isAdmin }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(fechaInicio || '');
+  useEffect(() => { setValor(fechaInicio || ''); }, [fechaInicio]);
+
+  async function guardar() {
+    await updateDoc(doc(db, 'aperturas', aperturaId), { fechaInicio: valor || null });
+    setEditando(false);
+  }
+
+  if (editando) {
+    return (
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+        <input type="date" value={valor} onChange={(e) => setValor(e.target.value)} style={{ fontSize: 12.5 }} />
+        <button className="btn-outline" type="button" style={{ padding: '2px 8px', fontSize: 11.5 }} onClick={guardar}>Guardar</button>
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      {fechaInicio ? `Inicio: ${fmtFecha(fechaInicio)}` : 'Sin fecha de inicio'}
+      {isAdmin && <button className="btn-outline" type="button" style={{ marginLeft: 8, padding: '1px 7px', fontSize: 11 }} onClick={() => setEditando(true)}>Editar</button>}
+    </span>
+  );
+}
+
 function FlagPrioridad({ prioridad }) {
   if (!prioridad || prioridad === 'ninguna') return <span style={{ color: 'var(--text-dimmer)' }}>⚑</span>;
   return <span style={{ color: PRIORIDAD_COLOR[prioridad] }} title={PRIORIDAD_LABEL[prioridad]}>⚑</span>;
@@ -403,7 +440,11 @@ export default function AperturaDetallePage({ params }) {
         <div>
           <Link href="/apertura" style={{ fontSize: 12, color: 'var(--text-dim)' }}>← Seguimiento de apertura</Link>
           <h1 style={{ marginTop: 4 }}>🏗️ {apertura.nombre}{apertura.archivada ? ' (archivada)' : ''}</h1>
-          <p>{apertura.municipio ? `${apertura.municipio} · ` : ''}{apertura.fechaObjetivo ? `Meta de apertura: ${fmtFecha(apertura.fechaObjetivo)}` : 'Sin fecha objetivo'}</p>
+          <p>
+            {apertura.municipio ? `${apertura.municipio} · ` : ''}
+            <FechaInicioApertura aperturaId={apertura.id} fechaInicio={apertura.fechaInicio} isAdmin={isAdmin} />
+            {' · '}{apertura.fechaObjetivo ? `Meta de apertura: ${fmtFecha(apertura.fechaObjetivo)}` : 'Sin fecha objetivo'}
+          </p>
         </div>
         {isAdmin && (
           <button className="btn-outline" type="button" onClick={handleArchivar}>
@@ -413,6 +454,9 @@ export default function AperturaDetallePage({ params }) {
       </div>
 
       <div className="kpi-row">
+        {apertura.fechaInicio && (
+          <div className="kpi"><div className="label">Días en curso</div><div className="value">{diasDesde(apertura.fechaInicio)}</div></div>
+        )}
         <div className="kpi"><div className="label">Avance general</div><div className="value">{totales.pct}%</div></div>
         <div className="kpi"><div className="label">Completadas</div><div className="value">{totales.completado} / {totales.total}</div></div>
         <div className="kpi"><div className="label">En proceso</div><div className="value">{totales.enProceso}</div></div>

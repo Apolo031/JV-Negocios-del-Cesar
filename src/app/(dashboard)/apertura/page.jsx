@@ -14,11 +14,16 @@ function fmtFecha(s) {
   return `${d}/${m}/${y}`;
 }
 
+function hoyISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function NuevaApertura({ onCreada }) {
   const { isAdmin } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
   const [municipio, setMunicipio] = useState('');
+  const [fechaInicio, setFechaInicio] = useState(hoyISO());
   const [fechaObjetivo, setFechaObjetivo] = useState('');
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +39,7 @@ function NuevaApertura({ onCreada }) {
       const batch = writeBatch(db);
       batch.set(ref, {
         nombre: nombre.trim(), municipio: municipio.trim() || null,
-        fechaObjetivo: fechaObjetivo || null, archivada: false, creadoEn: Date.now(),
+        fechaInicio: fechaInicio || null, fechaObjetivo: fechaObjetivo || null, archivada: false, creadoEn: Date.now(),
       });
       APERTURA_TEMPLATE.forEach((t, i) => {
         batch.set(doc(collection(db, 'apertura_items')), {
@@ -43,7 +48,7 @@ function NuevaApertura({ onCreada }) {
         });
       });
       await batch.commit();
-      setNombre(''); setMunicipio(''); setFechaObjetivo(''); setAbierto(false);
+      setNombre(''); setMunicipio(''); setFechaInicio(hoyISO()); setFechaObjetivo(''); setAbierto(false);
       onCreada?.(ref.id);
     } catch (err) {
       setError(err.message);
@@ -70,6 +75,10 @@ function NuevaApertura({ onCreada }) {
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Municipio (opcional)</div>
           <input type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)} placeholder="Medellín" style={{ width: 180 }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fecha de inicio del proyecto</div>
+          <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fecha objetivo de apertura (opcional)</div>
