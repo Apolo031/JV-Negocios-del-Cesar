@@ -337,7 +337,12 @@ function HistorialNovedades({ aperturaId, items, novedades, canEditar, isAdmin, 
   }
 
   async function toggleResuelta(n) {
-    await updateDoc(doc(db, 'apertura_novedades', n.id), { estado: n.estado === 'abierta' ? 'resuelta' : 'abierta' });
+    const pasaAResuelta = n.estado === 'abierta';
+    await updateDoc(doc(db, 'apertura_novedades', n.id), {
+      estado: pasaAResuelta ? 'resuelta' : 'abierta',
+      resueltoPor: pasaAResuelta ? (userEmail || null) : null,
+      resueltoEn: pasaAResuelta ? Date.now() : null,
+    });
   }
   async function eliminar(n) {
     await deleteDoc(doc(db, 'apertura_novedades', n.id));
@@ -389,7 +394,7 @@ function HistorialNovedades({ aperturaId, items, novedades, canEditar, isAdmin, 
             <thead>
               <tr>
                 <th>Fecha</th><th style={{ textAlign: 'left' }}>Tarea</th><th style={{ textAlign: 'left' }}>Novedad</th>
-                <th>Estado</th><th>Registrada por</th>{canEditar && <th></th>}
+                <th>Estado</th><th>Registrada por</th><th>Resuelta por</th>{canEditar && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -400,6 +405,11 @@ function HistorialNovedades({ aperturaId, items, novedades, canEditar, isAdmin, 
                   <td style={{ textAlign: 'left', fontSize: 12.5 }}>{n.descripcion}</td>
                   <td><span className={`pill ${n.estado === 'abierta' ? 'neg' : 'pos'}`}>{n.estado === 'abierta' ? 'Abierta' : 'Resuelta'}</span></td>
                   <td style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>{n.creadoPor || '—'}</td>
+                  <td style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
+                    {n.estado === 'resuelta' && n.resueltoPor
+                      ? `${n.resueltoPor}${n.resueltoEn ? ` · ${fmtFecha(new Date(n.resueltoEn).toISOString().slice(0, 10))}` : ''}`
+                      : '—'}
+                  </td>
                   {canEditar && (
                     <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button className="btn-outline" type="button" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => toggleResuelta(n)}>
