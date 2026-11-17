@@ -139,6 +139,7 @@ export default function AperturaIndexPage() {
             {activas.map((a) => {
               const r = resumenPorApertura.get(a.id) || { total: 0, completado: 0 };
               const pct = r.total ? Math.round((r.completado / r.total) * 100) : 0;
+              const color = pct === 100 ? 'var(--green)' : pct >= 50 ? 'var(--gold)' : 'var(--red)';
               return (
                 <Link
                   key={a.id} href={`/apertura/${a.id}`}
@@ -152,11 +153,11 @@ export default function AperturaIndexPage() {
                     {a.municipio ? `${a.municipio} · ` : ''}{a.fechaObjetivo ? `Meta: ${fmtFecha(a.fechaObjetivo)}` : 'Sin fecha objetivo'}
                   </div>
                   <div style={{ marginTop: 10, background: 'var(--surface)', borderRadius: 6, overflow: 'hidden', height: 10 }}>
-                    <div style={{ width: `${pct}%`, background: pct === 100 ? 'var(--green)' : 'var(--gold)', height: '100%' }} />
+                    <div style={{ width: `${pct}%`, background: color, height: '100%' }} />
                   </div>
                   <div style={{ fontSize: 12, marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
                     <span>{r.completado} / {r.total} tareas</span>
-                    <b>{pct}%</b>
+                    <b style={{ color }}>{pct}%</b>
                   </div>
                 </Link>
               );

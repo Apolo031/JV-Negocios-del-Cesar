@@ -217,6 +217,7 @@ td.name{font-family:'Inter',sans-serif; font-weight:500;}
 .pill.pos{background:rgba(79,157,105,0.15); color:var(--green);}
 .pill.neg{background:rgba(193,68,58,0.15); color:var(--red);}
 .pill.neu{background:rgba(141,150,172,0.15); color:var(--text-dim);}
+.pill.warn{background:rgba(199,163,57,0.18); color:var(--gold-light);}
 
 .alert-card{display:flex; gap:14px; padding:16px 18px; border-radius:10px; margin-bottom:12px; border:1px solid var(--border); background:var(--surface-2); border-left:3px solid var(--text-dimmer);}
 .alert-card.sev-high{border-left-color:var(--red);}

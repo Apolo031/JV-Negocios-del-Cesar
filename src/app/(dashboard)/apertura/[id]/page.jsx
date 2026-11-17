@@ -13,10 +13,20 @@ function fmtFecha(s) {
   return `${d}/${m}/${y}`;
 }
 
-function pillClase(estado) {
-  if (estado === 'completado') return 'pos';
-  if (estado === 'en_proceso') return 'neu';
-  return 'neg';
+const ESTADO_PILL = { completado: 'pos', en_proceso: 'warn', pendiente: 'neg' };
+const ESTADO_COLOR = { completado: 'var(--green)', en_proceso: 'var(--gold)', pendiente: 'var(--red)' };
+
+/** Punto de color (🔴🟡🟢) para identificar el estado de un vistazo, sin tener que leer el texto. */
+function Semaforo({ estado, size = 9 }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-block', width: size, height: size, borderRadius: '50%',
+        background: ESTADO_COLOR[estado] || 'var(--text-dimmer)', flexShrink: 0,
+      }}
+    />
+  );
 }
 
 function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, onEliminar, isAdmin }) {
@@ -28,11 +38,17 @@ function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, on
       <td className="name" style={{ fontSize: 13 }}>{item.concepto}</td>
       <td>
         {canEditar ? (
-          <select value={item.estado} onChange={(e) => onCambiarEstado(item.id, e.target.value)} style={{ fontSize: 12 }}>
-            {ESTADOS_APERTURA.map((e) => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
-          </select>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Semaforo estado={item.estado} />
+            <select
+              value={item.estado} onChange={(e) => onCambiarEstado(item.id, e.target.value)}
+              style={{ fontSize: 12, borderColor: ESTADO_COLOR[item.estado], color: ESTADO_COLOR[item.estado], fontWeight: 600 }}
+            >
+              {ESTADOS_APERTURA.map((e) => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+            </select>
+          </span>
         ) : (
-          <span className={`pill ${pillClase(item.estado)}`}>{ESTADO_LABEL[item.estado]}</span>
+          <span className={`pill ${ESTADO_PILL[item.estado]}`}><Semaforo estado={item.estado} size={7} /> {ESTADO_LABEL[item.estado]}</span>
         )}
       </td>
       <td style={{ textAlign: 'left' }}>
@@ -225,13 +241,14 @@ export default function AperturaDetallePage({ params }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {porArea.map((a) => {
             const pct = a.total ? Math.round((a.completado / a.total) * 100) : 0;
+            const color = pct === 100 ? 'var(--green)' : pct >= 50 ? 'var(--gold)' : 'var(--red)';
             return (
               <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 220, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{a.nombre}</div>
                 <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 18 }}>
-                  <div style={{ width: `${pct}%`, background: pct === 100 ? 'var(--green)' : 'var(--gold)', height: '100%', minWidth: pct > 0 ? 3 : 0 }} />
+                  <div style={{ width: `${pct}%`, background: color, height: '100%', minWidth: pct > 0 ? 3 : 0 }} />
                 </div>
-                <div style={{ width: 90, flexShrink: 0, fontSize: 12, textAlign: 'right' }}>{a.completado}/{a.total} · <b>{pct}%</b></div>
+                <div style={{ width: 90, flexShrink: 0, fontSize: 12, textAlign: 'right' }}>{a.completado}/{a.total} · <b style={{ color }}>{pct}%</b></div>
               </div>
             );
           })}
