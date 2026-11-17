@@ -154,8 +154,10 @@ export const APERTURA_TEMPLATE = [
 export const ESTADOS_APERTURA = ['pendiente', 'en_proceso', 'completado'];
 export const ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', completado: 'Completado' };
 
-export const PRIORIDADES = ['ninguna', 'baja', 'media', 'alta', 'urgente'];
-export const PRIORIDAD_LABEL = { ninguna: 'Ninguna', baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' };
+// Mismo orden y nombres que el menú de prioridad de ClickUp (Urgente, Alta,
+// Normal, Baja, Borrar) — "ninguna" hace las veces de "Borrar" (sin prioridad).
+export const PRIORIDADES = ['urgente', 'alta', 'normal', 'baja', 'ninguna'];
+export const PRIORIDAD_LABEL = { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baja: 'Baja', ninguna: 'Ninguna' };
 export const PRIORIDAD_COLOR = {
-  ninguna: 'var(--text-dimmer)', baja: 'var(--text-dim)', media: 'var(--gold-light)', alta: 'var(--gold)', urgente: 'var(--red)',
+  urgente: 'var(--red)', alta: 'var(--gold)', normal: 'var(--blue)', baja: 'var(--text-dim)', ninguna: 'var(--text-dimmer)',
 };
