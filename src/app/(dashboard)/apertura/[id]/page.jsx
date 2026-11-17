@@ -70,6 +70,84 @@ function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, on
   );
 }
 
+function TareaCard({ item, areaNombre, canEditar, onCambiarEstado }) {
+  return (
+    <div
+      draggable={canEditar}
+      onDragStart={(e) => { e.dataTransfer.setData('text/plain', item.id); e.dataTransfer.effectAllowed = 'move'; }}
+      style={{
+        background: 'var(--surface-2)', border: '1px solid var(--border)', borderLeft: `3px solid ${ESTADO_COLOR[item.estado]}`,
+        borderRadius: 8, padding: '9px 11px', marginBottom: 8, cursor: canEditar ? 'grab' : 'default',
+      }}
+    >
+      <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginBottom: 3 }}>{areaNombre}</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.35 }}>{item.concepto}</div>
+      {item.observaciones && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 5 }}>📝 {item.observaciones}</div>}
+      {canEditar && (
+        <select
+          value={item.estado} onChange={(e) => onCambiarEstado(item.id, e.target.value)}
+          style={{ marginTop: 7, fontSize: 11, width: '100%' }}
+        >
+          {ESTADOS_APERTURA.map((e) => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+        </select>
+      )}
+    </div>
+  );
+}
+
+/** Tablero tipo Kanban: las mismas tareas que la vista de lista, pero como tarjetas que se arrastran entre columnas para cambiar su estado. */
+function TableroKanban({ items, areaNombrePorKey, canEditar, onCambiarEstado }) {
+  const [filtroArea, setFiltroArea] = useState('__ALL__');
+  const [colOver, setColOver] = useState(null);
+
+  const filtrados = filtroArea === '__ALL__' ? items : items.filter((it) => it.area === filtroArea);
+
+  function handleDrop(e, estado) {
+    e.preventDefault();
+    setColOver(null);
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) onCambiarEstado(id, estado);
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h3>Tablero</h3>
+        <select value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)} style={{ fontSize: 12.5 }}>
+          <option value="__ALL__">Todas las áreas</option>
+          {APERTURA_AREAS.map((a) => <option key={a.key} value={a.key}>{a.nombre}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+        {ESTADOS_APERTURA.map((estado) => {
+          const columna = filtrados.filter((it) => it.estado === estado);
+          return (
+            <div
+              key={estado}
+              onDragOver={(e) => { e.preventDefault(); setColOver(estado); }}
+              onDragLeave={() => setColOver((c) => (c === estado ? null : c))}
+              onDrop={(e) => handleDrop(e, estado)}
+              style={{
+                background: colOver === estado ? 'rgba(199,163,57,0.08)' : 'var(--surface)',
+                border: `1.5px dashed ${colOver === estado ? 'var(--gold)' : 'var(--border)'}`,
+                borderRadius: 10, padding: 10, minHeight: 160, maxHeight: 640, overflowY: 'auto',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: ESTADO_COLOR[estado] }}>
+                <Semaforo estado={estado} /> {ESTADO_LABEL[estado]} <span className="hint">{columna.length}</span>
+              </div>
+              {columna.map((item) => (
+                <TareaCard key={item.id} item={item} areaNombre={areaNombrePorKey[item.area]} canEditar={canEditar} onCambiarEstado={onCambiarEstado} />
+              ))}
+              {columna.length === 0 && <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', textAlign: 'center', marginTop: 20 }}>Sin tareas</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AgregarTarea({ area, siguienteOrden, aperturaId, onAgregada }) {
   const [abierto, setAbierto] = useState(false);
   const [concepto, setConcepto] = useState('');
@@ -149,6 +227,7 @@ export default function AperturaDetallePage({ params }) {
   const [areas, setAreas] = useState({});
   const [loading, setLoading] = useState(true);
   const [colapsadas, setColapsadas] = useState(() => new Set());
+  const [vista, setVista] = useState('lista');
 
   useEffect(() => {
     const unsub1 = onSnapshot(doc(db, 'aperturas', params.id), (snap) => {
@@ -175,6 +254,8 @@ export default function AperturaDetallePage({ params }) {
       return { ...a, items: propios, total: propios.length, completado, enProceso, pendiente: propios.length - completado - enProceso };
     }).filter((a) => a.total > 0);
   }, [items]);
+
+  const areaNombrePorKey = useMemo(() => Object.fromEntries(APERTURA_AREAS.map((a) => [a.key, a.nombre])), []);
 
   const totales = useMemo(() => {
     const total = items.length;
@@ -255,7 +336,16 @@ export default function AperturaDetallePage({ params }) {
         </div>
       </div>
 
-      {porArea.map((a) => {
+      <div style={{ display: 'flex', gap: 8, margin: '0 0 16px' }}>
+        <button className={`btn-toggle${vista === 'lista' ? ' active' : ''}`} type="button" onClick={() => setVista('lista')}>☰ Lista</button>
+        <button className={`btn-toggle${vista === 'tablero' ? ' active' : ''}`} type="button" onClick={() => setVista('tablero')}>▦ Tablero</button>
+      </div>
+
+      {vista === 'tablero' && (
+        <TableroKanban items={items} areaNombrePorKey={areaNombrePorKey} canEditar={canEditar} onCambiarEstado={handleCambiarEstado} />
+      )}
+
+      {vista === 'lista' && porArea.map((a) => {
         const colapsada = colapsadas.has(a.key);
         return (
           <div className="panel" key={a.key}>
