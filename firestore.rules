@@ -145,6 +145,29 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Seguimiento de apertura de joyerías nuevas: un "proyecto" por sucursal
+    // nueva, con su checklist de tareas organizado por área responsable. El
+    // admin crea/edita la sucursal y la lista de tareas; un colaborador puede
+    // marcar el avance de una tarea (cambiar su estado), pero no crear ni
+    // borrar sucursales ni tareas — igual que en reparaciones.
+    match /aperturas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /apertura_items/{docId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isColaborador();
+    }
+
+    // Responsable (nombre/correo) de cada área, reutilizado en todas las
+    // sucursales en apertura — queda listo para cuando se conecte el envío
+    // de notificaciones por correo.
+    match /apertura_areas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Candados de coordinación entre procesos (ej. "importLock" para que una
     // importación de contratos desde la pantalla y una desde un script de
     // servidor no corran al mismo tiempo). No son datos del negocio.

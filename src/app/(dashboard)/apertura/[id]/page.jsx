@@ -1,0 +1,289 @@
+'use client';
+
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { collection, deleteDoc, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { db } from '@/lib/firebaseClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { APERTURA_AREAS, ESTADOS_APERTURA, ESTADO_LABEL } from '@/lib/aperturaTemplate';
+
+function fmtFecha(s) {
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function pillClase(estado) {
+  if (estado === 'completado') return 'pos';
+  if (estado === 'en_proceso') return 'neu';
+  return 'neg';
+}
+
+function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, onEliminar, isAdmin }) {
+  const [obs, setObs] = useState(item.observaciones || '');
+  useEffect(() => { setObs(item.observaciones || ''); }, [item.observaciones]);
+
+  return (
+    <tr>
+      <td className="name" style={{ fontSize: 13 }}>{item.concepto}</td>
+      <td>
+        {canEditar ? (
+          <select value={item.estado} onChange={(e) => onCambiarEstado(item.id, e.target.value)} style={{ fontSize: 12 }}>
+            {ESTADOS_APERTURA.map((e) => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+          </select>
+        ) : (
+          <span className={`pill ${pillClase(item.estado)}`}>{ESTADO_LABEL[item.estado]}</span>
+        )}
+      </td>
+      <td style={{ textAlign: 'left' }}>
+        {canEditar ? (
+          <input
+            type="text" value={obs} placeholder="Observación…"
+            onChange={(e) => setObs(e.target.value)}
+            onBlur={() => { if (obs !== (item.observaciones || '')) onGuardarObservaciones(item.id, obs); }}
+            style={{ width: '100%', fontSize: 12 }}
+          />
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{item.observaciones || '—'}</span>
+        )}
+      </td>
+      {isAdmin && (
+        <td><button className="btn-outline" type="button" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onEliminar(item.id)}>Quitar</button></td>
+      )}
+    </tr>
+  );
+}
+
+function AgregarTarea({ area, siguienteOrden, aperturaId, onAgregada }) {
+  const [abierto, setAbierto] = useState(false);
+  const [concepto, setConcepto] = useState('');
+
+  async function handleAgregar() {
+    if (!concepto.trim()) return;
+    await setDoc(doc(collection(db, 'apertura_items')), {
+      aperturaId, area, concepto: concepto.trim(), estado: 'pendiente',
+      orden: siguienteOrden, observaciones: null, actualizadoEn: Date.now(),
+    });
+    setConcepto('');
+    setAbierto(false);
+    onAgregada?.();
+  }
+
+  if (!abierto) {
+    return <button className="btn-outline" type="button" style={{ marginTop: 8, fontSize: 12 }} onClick={() => setAbierto(true)}>+ Agregar tarea</button>;
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+      <input
+        type="text" value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Nueva tarea…"
+        style={{ fontSize: 12, flex: 1, maxWidth: 320 }} autoFocus
+        onKeyDown={(e) => { if (e.key === 'Enter') handleAgregar(); }}
+      />
+      <button className="btn-outline" type="button" style={{ fontSize: 12 }} onClick={handleAgregar}>Guardar</button>
+      <button className="btn-outline" type="button" style={{ fontSize: 12 }} onClick={() => { setAbierto(false); setConcepto(''); }}>Cancelar</button>
+    </div>
+  );
+}
+
+function ResponsableArea({ area, areaInfo, isAdmin }) {
+  const [editando, setEditando] = useState(false);
+  const [nombre, setNombre] = useState(areaInfo?.responsableNombre || '');
+  const [correo, setCorreo] = useState(areaInfo?.responsableEmail || '');
+
+  useEffect(() => {
+    setNombre(areaInfo?.responsableNombre || '');
+    setCorreo(areaInfo?.responsableEmail || '');
+  }, [areaInfo?.responsableNombre, areaInfo?.responsableEmail]);
+
+  async function guardar() {
+    await setDoc(doc(db, 'apertura_areas', area), {
+      nombre: APERTURA_AREAS.find((a) => a.key === area)?.nombre || area,
+      responsableNombre: nombre.trim() || null, responsableEmail: correo.trim() || null,
+    }, { merge: true });
+    setEditando(false);
+  }
+
+  if (!isAdmin && !areaInfo?.responsableNombre && !areaInfo?.responsableEmail) return null;
+
+  if (editando) {
+    return (
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 11.5 }}>
+        <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Responsable" style={{ width: 120, fontSize: 11.5 }} />
+        <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="correo@..." style={{ width: 160, fontSize: 11.5 }} />
+        <button className="btn-outline" type="button" style={{ padding: '1px 7px', fontSize: 11 }} onClick={guardar}>Guardar</button>
+      </span>
+    );
+  }
+
+  return (
+    <span style={{ fontSize: 11.5, color: 'var(--text-dimmer)' }}>
+      {areaInfo?.responsableNombre || areaInfo?.responsableEmail
+        ? `Responsable: ${areaInfo?.responsableNombre || ''}${areaInfo?.responsableEmail ? ` · ${areaInfo.responsableEmail}` : ''}`
+        : 'Sin responsable asignado'}
+      {isAdmin && <button className="btn-outline" type="button" style={{ marginLeft: 8, padding: '1px 7px', fontSize: 11 }} onClick={() => setEditando(true)}>Editar</button>}
+    </span>
+  );
+}
+
+export default function AperturaDetallePage({ params }) {
+  const { isAdmin, role } = useAuth();
+  const canEditar = isAdmin || role === 'colaborador';
+  const [apertura, setApertura] = useState(null);
+  const [items, setItems] = useState([]);
+  const [areas, setAreas] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [colapsadas, setColapsadas] = useState(() => new Set());
+
+  useEffect(() => {
+    const unsub1 = onSnapshot(doc(db, 'aperturas', params.id), (snap) => {
+      setApertura(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      setLoading(false);
+    });
+    const q = query(collection(db, 'apertura_items'), where('aperturaId', '==', params.id));
+    const unsub2 = onSnapshot(q, (snap) => {
+      setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsub3 = onSnapshot(collection(db, 'apertura_areas'), (snap) => {
+      const map = {};
+      snap.docs.forEach((d) => { map[d.id] = d.data(); });
+      setAreas(map);
+    });
+    return () => { unsub1(); unsub2(); unsub3(); };
+  }, [params.id]);
+
+  const porArea = useMemo(() => {
+    return APERTURA_AREAS.map((a) => {
+      const propios = items.filter((it) => it.area === a.key).sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0));
+      const completado = propios.filter((it) => it.estado === 'completado').length;
+      const enProceso = propios.filter((it) => it.estado === 'en_proceso').length;
+      return { ...a, items: propios, total: propios.length, completado, enProceso, pendiente: propios.length - completado - enProceso };
+    }).filter((a) => a.total > 0);
+  }, [items]);
+
+  const totales = useMemo(() => {
+    const total = items.length;
+    const completado = items.filter((it) => it.estado === 'completado').length;
+    const enProceso = items.filter((it) => it.estado === 'en_proceso').length;
+    return { total, completado, enProceso, pendiente: total - completado - enProceso, pct: total ? Math.round((completado / total) * 100) : 0 };
+  }, [items]);
+
+  function toggleArea(key) {
+    setColapsadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleCambiarEstado(itemId, estado) {
+    await updateDoc(doc(db, 'apertura_items', itemId), { estado, actualizadoEn: Date.now() });
+  }
+  async function handleGuardarObservaciones(itemId, observaciones) {
+    await updateDoc(doc(db, 'apertura_items', itemId), { observaciones: observaciones.trim() || null, actualizadoEn: Date.now() });
+  }
+  async function handleEliminarItem(itemId) {
+    await deleteDoc(doc(db, 'apertura_items', itemId));
+  }
+  async function handleArchivar() {
+    await updateDoc(doc(db, 'aperturas', params.id), { archivada: !apertura.archivada });
+  }
+
+  if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
+  if (!apertura) {
+    return (
+      <div>
+        <Link href="/apertura" style={{ fontSize: 12, color: 'var(--text-dim)' }}>← Seguimiento de apertura</Link>
+        <div className="alert-empty" style={{ marginTop: 14 }}>Esta sucursal en apertura no existe (puede que haya sido eliminada).</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <Link href="/apertura" style={{ fontSize: 12, color: 'var(--text-dim)' }}>← Seguimiento de apertura</Link>
+          <h1 style={{ marginTop: 4 }}>🏗️ {apertura.nombre}{apertura.archivada ? ' (archivada)' : ''}</h1>
+          <p>{apertura.municipio ? `${apertura.municipio} · ` : ''}{apertura.fechaObjetivo ? `Meta de apertura: ${fmtFecha(apertura.fechaObjetivo)}` : 'Sin fecha objetivo'}</p>
+        </div>
+        {isAdmin && (
+          <button className="btn-outline" type="button" onClick={handleArchivar}>
+            {apertura.archivada ? 'Reactivar' : 'Archivar sucursal'}
+          </button>
+        )}
+      </div>
+
+      <div className="kpi-row">
+        <div className="kpi"><div className="label">Avance general</div><div className="value">{totales.pct}%</div></div>
+        <div className="kpi"><div className="label">Completadas</div><div className="value">{totales.completado} / {totales.total}</div></div>
+        <div className="kpi"><div className="label">En proceso</div><div className="value">{totales.enProceso}</div></div>
+        <div className="kpi"><div className="label">Pendientes</div><div className="value">{totales.pendiente}</div></div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head"><h3>Avance por área</h3></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {porArea.map((a) => {
+            const pct = a.total ? Math.round((a.completado / a.total) * 100) : 0;
+            return (
+              <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 220, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{a.nombre}</div>
+                <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 18 }}>
+                  <div style={{ width: `${pct}%`, background: pct === 100 ? 'var(--green)' : 'var(--gold)', height: '100%', minWidth: pct > 0 ? 3 : 0 }} />
+                </div>
+                <div style={{ width: 90, flexShrink: 0, fontSize: 12, textAlign: 'right' }}>{a.completado}/{a.total} · <b>{pct}%</b></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {porArea.map((a) => {
+        const colapsada = colapsadas.has(a.key);
+        return (
+          <div className="panel" key={a.key}>
+            <div className="panel-head" style={{ cursor: 'pointer' }} onClick={() => toggleArea(a.key)}>
+              <h3>{a.nombre} <span className="hint">{a.completado}/{a.total}</span></h3>
+              <span className="nav-chevron" aria-hidden="true" style={{ transform: colapsada ? 'rotate(-90deg)' : 'none' }}>▾</span>
+            </div>
+            <div style={{ marginBottom: 8 }} onClick={(e) => e.stopPropagation()}>
+              <ResponsableArea area={a.key} areaInfo={areas[a.key]} isAdmin={isAdmin} />
+            </div>
+            {!colapsada && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Tarea</th><th>Estado</th><th style={{ textAlign: 'left' }}>Observaciones</th>
+                        {isAdmin && <th></th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {a.items.map((item) => (
+                        <Fragment key={item.id}>
+                          <ItemFila
+                            item={item} canEditar={canEditar} isAdmin={isAdmin}
+                            onCambiarEstado={handleCambiarEstado}
+                            onGuardarObservaciones={handleGuardarObservaciones}
+                            onEliminar={handleEliminarItem}
+                          />
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {isAdmin && (
+                  <AgregarTarea
+                    area={a.key} aperturaId={apertura.id}
+                    siguienteOrden={Math.max(0, ...a.items.map((it) => it.orden ?? 0)) + 1}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

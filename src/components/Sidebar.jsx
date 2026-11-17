@@ -22,6 +22,7 @@ const SECTIONS = [
       { href: '/reparaciones', label: 'Reparaciones', icon: '🔧' },
       { href: '/identificar-joya', label: 'Identificar joya', icon: '🔍' },
       { href: '/publicidad', label: 'Publicidad y pendientes', icon: '📣' },
+      { href: '/apertura', label: 'Seguimiento de apertura', icon: '🏗️' },
     ],
   },
   {
