@@ -153,3 +153,9 @@ export const APERTURA_TEMPLATE = [
 
 export const ESTADOS_APERTURA = ['pendiente', 'en_proceso', 'completado'];
 export const ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', completado: 'Completado' };
+
+export const PRIORIDADES = ['ninguna', 'baja', 'media', 'alta', 'urgente'];
+export const PRIORIDAD_LABEL = { ninguna: 'Ninguna', baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' };
+export const PRIORIDAD_COLOR = {
+  ninguna: 'var(--text-dimmer)', baja: 'var(--text-dim)', media: 'var(--gold-light)', alta: 'var(--gold)', urgente: 'var(--red)',
+};

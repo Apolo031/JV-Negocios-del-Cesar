@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { collection, deleteDoc, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { APERTURA_AREAS, ESTADOS_APERTURA, ESTADO_LABEL } from '@/lib/aperturaTemplate';
+import { APERTURA_AREAS, ESTADOS_APERTURA, ESTADO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, PRIORIDAD_COLOR } from '@/lib/aperturaTemplate';
 
 function fmtFecha(s) {
   if (!s) return '—';
@@ -13,8 +13,28 @@ function fmtFecha(s) {
   return `${d}/${m}/${y}`;
 }
 
+function hoyISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Vencida = tiene fecha límite, ya pasó, y la tarea no está completada. */
+function estaVencida(item) {
+  return !!(item.fechaLimite && item.fechaLimite < hoyISO() && item.estado !== 'completado');
+}
+
 const ESTADO_PILL = { completado: 'pos', en_proceso: 'warn', pendiente: 'neg' };
 const ESTADO_COLOR = { completado: 'var(--green)', en_proceso: 'var(--gold)', pendiente: 'var(--red)' };
+const AVATAR_PALETTE = ['#c7a339', '#4f9d69', '#5b8ac5', '#b2558e', '#c1443a', '#6b8e23'];
+
+function iniciales(nombre) {
+  const partes = nombre.trim().split(/\s+/);
+  return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase();
+}
+function colorDeNombre(nombre) {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
 
 /** Punto de color (🔴🟡🟢) para identificar el estado de un vistazo, sin tener que leer el texto. */
 function Semaforo({ estado, size = 9 }) {
@@ -29,13 +49,71 @@ function Semaforo({ estado, size = 9 }) {
   );
 }
 
-function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, onEliminar, isAdmin }) {
+function Avatar({ nombre, size = 22 }) {
+  if (!nombre?.trim()) return <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>Sin asignar</span>;
+  return (
+    <span
+      title={nombre}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size,
+        borderRadius: '50%', background: colorDeNombre(nombre), color: '#fff', fontSize: size * 0.45, fontWeight: 700, flexShrink: 0,
+      }}
+    >
+      {iniciales(nombre)}
+    </span>
+  );
+}
+
+function FlagPrioridad({ prioridad }) {
+  if (!prioridad || prioridad === 'ninguna') return <span style={{ color: 'var(--text-dimmer)' }}>⚑</span>;
+  return <span style={{ color: PRIORIDAD_COLOR[prioridad] }} title={PRIORIDAD_LABEL[prioridad]}>⚑</span>;
+}
+
+function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, onGuardarResponsable, onGuardarFechaLimite, onCambiarPrioridad, onEliminar, isAdmin }) {
   const [obs, setObs] = useState(item.observaciones || '');
   useEffect(() => { setObs(item.observaciones || ''); }, [item.observaciones]);
+  const [responsable, setResponsable] = useState(item.responsable || '');
+  useEffect(() => { setResponsable(item.responsable || ''); }, [item.responsable]);
+  const vencida = estaVencida(item);
 
   return (
     <tr>
       <td className="name" style={{ fontSize: 13 }}>{item.concepto}</td>
+      <td>
+        {canEditar ? (
+          <input
+            type="text" value={responsable} placeholder="Nombre…"
+            onChange={(e) => setResponsable(e.target.value)}
+            onBlur={() => { if (responsable !== (item.responsable || '')) onGuardarResponsable(item.id, responsable); }}
+            style={{ width: 100, fontSize: 12 }}
+          />
+        ) : (
+          <Avatar nombre={item.responsable} />
+        )}
+      </td>
+      <td>
+        {canEditar ? (
+          <input
+            type="date" value={item.fechaLimite || ''}
+            onChange={(e) => onGuardarFechaLimite(item.id, e.target.value)}
+            style={{ fontSize: 11.5, colorScheme: 'auto', borderColor: vencida ? 'var(--red)' : undefined, color: vencida ? 'var(--red)' : undefined }}
+          />
+        ) : (
+          <span style={{ fontSize: 12, color: vencida ? 'var(--red)' : 'var(--text-dim)', fontWeight: vencida ? 700 : 400 }}>{item.fechaLimite ? fmtFecha(item.fechaLimite) : '—'}</span>
+        )}
+      </td>
+      <td>
+        {canEditar ? (
+          <select
+            value={item.prioridad || 'ninguna'} onChange={(e) => onCambiarPrioridad(item.id, e.target.value)}
+            style={{ fontSize: 12, color: PRIORIDAD_COLOR[item.prioridad || 'ninguna'] }}
+          >
+            {PRIORIDADES.map((p) => <option key={p} value={p}>{PRIORIDAD_LABEL[p]}</option>)}
+          </select>
+        ) : (
+          <span><FlagPrioridad prioridad={item.prioridad} /> {PRIORIDAD_LABEL[item.prioridad || 'ninguna']}</span>
+        )}
+      </td>
       <td>
         {canEditar ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -51,6 +129,7 @@ function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, on
           <span className={`pill ${ESTADO_PILL[item.estado]}`}><Semaforo estado={item.estado} size={7} /> {ESTADO_LABEL[item.estado]}</span>
         )}
       </td>
+      <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{item.fechaFinalizacion ? fmtFecha(new Date(item.fechaFinalizacion).toISOString().slice(0, 10)) : '—'}</td>
       <td style={{ textAlign: 'left' }}>
         {canEditar ? (
           <input
@@ -80,9 +159,20 @@ function TareaCard({ item, areaNombre, canEditar, onCambiarEstado }) {
         borderRadius: 8, padding: '9px 11px', marginBottom: 8, cursor: canEditar ? 'grab' : 'default',
       }}
     >
-      <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginBottom: 3 }}>{areaNombre}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>{areaNombre}</div>
+        <FlagPrioridad prioridad={item.prioridad} />
+      </div>
       <div style={{ fontSize: 12.5, lineHeight: 1.35 }}>{item.concepto}</div>
       {item.observaciones && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 5 }}>📝 {item.observaciones}</div>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 7 }}>
+        <Avatar nombre={item.responsable} size={20} />
+        {item.fechaLimite && (
+          <span style={{ fontSize: 10.5, color: estaVencida(item) ? 'var(--red)' : 'var(--text-dimmer)', fontWeight: estaVencida(item) ? 700 : 400 }}>
+            📅 {fmtFecha(item.fechaLimite)}
+          </span>
+        )}
+      </div>
       {canEditar && (
         <select
           value={item.estado} onChange={(e) => onCambiarEstado(item.id, e.target.value)}
@@ -261,7 +351,8 @@ export default function AperturaDetallePage({ params }) {
     const total = items.length;
     const completado = items.filter((it) => it.estado === 'completado').length;
     const enProceso = items.filter((it) => it.estado === 'en_proceso').length;
-    return { total, completado, enProceso, pendiente: total - completado - enProceso, pct: total ? Math.round((completado / total) * 100) : 0 };
+    const vencidas = items.filter(estaVencida).length;
+    return { total, completado, enProceso, vencidas, pendiente: total - completado - enProceso, pct: total ? Math.round((completado / total) * 100) : 0 };
   }, [items]);
 
   function toggleArea(key) {
@@ -273,10 +364,21 @@ export default function AperturaDetallePage({ params }) {
   }
 
   async function handleCambiarEstado(itemId, estado) {
-    await updateDoc(doc(db, 'apertura_items', itemId), { estado, actualizadoEn: Date.now() });
+    await updateDoc(doc(db, 'apertura_items', itemId), {
+      estado, actualizadoEn: Date.now(), fechaFinalizacion: estado === 'completado' ? Date.now() : null,
+    });
   }
   async function handleGuardarObservaciones(itemId, observaciones) {
     await updateDoc(doc(db, 'apertura_items', itemId), { observaciones: observaciones.trim() || null, actualizadoEn: Date.now() });
+  }
+  async function handleGuardarResponsable(itemId, responsable) {
+    await updateDoc(doc(db, 'apertura_items', itemId), { responsable: responsable.trim() || null, actualizadoEn: Date.now() });
+  }
+  async function handleGuardarFechaLimite(itemId, fechaLimite) {
+    await updateDoc(doc(db, 'apertura_items', itemId), { fechaLimite: fechaLimite || null, actualizadoEn: Date.now() });
+  }
+  async function handleCambiarPrioridad(itemId, prioridad) {
+    await updateDoc(doc(db, 'apertura_items', itemId), { prioridad, actualizadoEn: Date.now() });
   }
   async function handleEliminarItem(itemId) {
     await deleteDoc(doc(db, 'apertura_items', itemId));
@@ -315,6 +417,9 @@ export default function AperturaDetallePage({ params }) {
         <div className="kpi"><div className="label">Completadas</div><div className="value">{totales.completado} / {totales.total}</div></div>
         <div className="kpi"><div className="label">En proceso</div><div className="value">{totales.enProceso}</div></div>
         <div className="kpi"><div className="label">Pendientes</div><div className="value">{totales.pendiente}</div></div>
+        {totales.vencidas > 0 && (
+          <div className="kpi"><div className="label">Vencidas</div><div className="value" style={{ color: 'var(--red)' }}>{totales.vencidas}</div></div>
+        )}
       </div>
 
       <div className="panel">
@@ -362,7 +467,8 @@ export default function AperturaDetallePage({ params }) {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left' }}>Tarea</th><th>Estado</th><th style={{ textAlign: 'left' }}>Observaciones</th>
+                        <th style={{ textAlign: 'left' }}>Tarea</th><th>Persona asignada</th><th>Fecha límite</th><th>Prioridad</th>
+                        <th>Estado</th><th>Fecha de finalización</th><th style={{ textAlign: 'left' }}>Observaciones</th>
                         {isAdmin && <th></th>}
                       </tr>
                     </thead>
@@ -373,6 +479,9 @@ export default function AperturaDetallePage({ params }) {
                             item={item} canEditar={canEditar} isAdmin={isAdmin}
                             onCambiarEstado={handleCambiarEstado}
                             onGuardarObservaciones={handleGuardarObservaciones}
+                            onGuardarResponsable={handleGuardarResponsable}
+                            onGuardarFechaLimite={handleGuardarFechaLimite}
+                            onCambiarPrioridad={handleCambiarPrioridad}
                             onEliminar={handleEliminarItem}
                           />
                         </Fragment>
