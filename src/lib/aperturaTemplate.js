@@ -7,23 +7,31 @@
 // las tareas — así cada sucursal tiene su propia copia editable, sin afectar
 // a las demás ni a este template.
 
+// Mismos 5 grupos que se usan en el tablero de ClickUp de aperturas, para
+// que ambas herramientas queden organizadas igual.
 export const APERTURA_AREAS = [
-  { key: 'legal', nombre: 'Documentación legal y permisos' },
+  { key: 'legal', nombre: 'Documento legal' },
   { key: 'seguridad', nombre: 'Seguridad y montaje' },
-  { key: 'tecnologia', nombre: 'Tecnología y sistemas' },
-  { key: 'finanzas', nombre: 'Finanzas y medios de pago' },
-  { key: 'papeleria', nombre: 'Papelería y mobiliario' },
-  { key: 'insumos', nombre: 'Insumos y herramientas de joyería' },
-  { key: 'electrodomesticos', nombre: 'Electrodomésticos' },
-  { key: 'inventario', nombre: 'Inventario' },
-  { key: 'procesos', nombre: 'Procesos y normativa interna' },
-  { key: 'gestion_humana', nombre: 'Gestión humana' },
-  { key: 'marketing', nombre: 'Marketing y publicidad' },
-  { key: 'fabricacion', nombre: 'Fabricación y exhibición' },
+  { key: 'operacion_interna', nombre: 'Operación interna' },
+  { key: 'gestion_humana', nombre: 'Gestión Humana' },
+  { key: 'marketing', nombre: 'Marketing y ventas' },
 ];
 
+// Antes había 12 áreas más desglosadas; se fusionaron en los 5 grupos de
+// arriba. Esto traduce esas claves viejas (que pueden seguir guardadas en
+// tareas creadas antes de la fusión) a su grupo nuevo, sin tener que tocar
+// nada en la base de datos.
+const AREA_REMAP = {
+  tecnologia: 'operacion_interna', finanzas: 'operacion_interna', papeleria: 'operacion_interna',
+  insumos: 'operacion_interna', electrodomesticos: 'operacion_interna', inventario: 'operacion_interna',
+  procesos: 'operacion_interna', fabricacion: 'marketing',
+};
+export function areaCanonica(area) {
+  return AREA_REMAP[area] || area;
+}
+
 export const APERTURA_TEMPLATE = [
-  // Documentación legal y permisos
+  // Documento legal
   { area: 'legal', concepto: 'Nombre de la joyería y sociedad a la que pertenece' },
   { area: 'legal', concepto: 'Actualización del RUT de la sociedad' },
   { area: 'legal', concepto: 'Código contable para la asignación de la joyería' },
@@ -61,70 +69,58 @@ export const APERTURA_TEMPLATE = [
   { area: 'seguridad', concepto: 'Guaya o sistema de seguridad para exhibición' },
   { area: 'seguridad', concepto: 'Estación portátil Ecoflow' },
 
-  // Tecnología y sistemas
-  { area: 'tecnologia', concepto: 'Equipo de cómputo' },
-  { area: 'tecnologia', concepto: 'Impresora' },
-  { area: 'tecnologia', concepto: 'UPS' },
-  { area: 'tecnologia', concepto: 'Huellero' },
-  { area: 'tecnologia', concepto: 'Cámara' },
-  { area: 'tecnologia', concepto: 'Celular corporativo' },
-  { area: 'tecnologia', concepto: 'Intercomunicadores' },
-  { area: 'tecnologia', concepto: 'Creación de correos electrónicos' },
-  { area: 'tecnologia', concepto: 'Usuario SINDRI' },
+  // Operación interna (tecnología, finanzas, papelería, insumos, electrodomésticos, inventario, procesos)
+  { area: 'operacion_interna', concepto: 'Equipo de cómputo' },
+  { area: 'operacion_interna', concepto: 'Impresora' },
+  { area: 'operacion_interna', concepto: 'UPS' },
+  { area: 'operacion_interna', concepto: 'Huellero' },
+  { area: 'operacion_interna', concepto: 'Cámara' },
+  { area: 'operacion_interna', concepto: 'Celular corporativo' },
+  { area: 'operacion_interna', concepto: 'Intercomunicadores' },
+  { area: 'operacion_interna', concepto: 'Creación de correos electrónicos' },
+  { area: 'operacion_interna', concepto: 'Usuario SINDRI' },
+  { area: 'operacion_interna', concepto: 'Activación de punto EFECTY' },
+  { area: 'operacion_interna', concepto: 'Usuario Efecty' },
+  { area: 'operacion_interna', concepto: 'Moneda de publicidad' },
+  { area: 'operacion_interna', concepto: 'Usuario MoneyGram' },
+  { area: 'operacion_interna', concepto: 'Usuario MSRED (letra de cambio)' },
+  { area: 'operacion_interna', concepto: 'Aviso de publicidad MASRED' },
+  { area: 'operacion_interna', concepto: 'Código Masred' },
+  { area: 'operacion_interna', concepto: 'Papelería de contingencia' },
+  { area: 'operacion_interna', concepto: 'Contratos preimpresos' },
+  { area: 'operacion_interna', concepto: 'Talonario de facturación' },
+  { area: 'operacion_interna', concepto: 'Libro de registro' },
+  { area: 'operacion_interna', concepto: 'Mueble de oficina' },
+  { area: 'operacion_interna', concepto: 'Sillas para clientes y colaboradores' },
+  { area: 'operacion_interna', concepto: 'Escritorios' },
+  { area: 'operacion_interna', concepto: 'Probador de joyería' },
+  { area: 'operacion_interna', concepto: 'TV' },
+  { area: 'operacion_interna', concepto: 'Insumos de contratación' },
+  { area: 'operacion_interna', concepto: 'Tester' },
+  { area: 'operacion_interna', concepto: 'Limas' },
+  { area: 'operacion_interna', concepto: 'Bolsa de seguridad' },
+  { area: 'operacion_interna', concepto: 'Gramera' },
+  { area: 'operacion_interna', concepto: 'Lupas' },
+  { area: 'operacion_interna', concepto: 'Paños para brillar' },
+  { area: 'operacion_interna', concepto: 'Medidor de anillos' },
+  { area: 'operacion_interna', concepto: 'Imán' },
+  { area: 'operacion_interna', concepto: 'Horno microondas' },
+  { area: 'operacion_interna', concepto: 'Nevera' },
+  { area: 'operacion_interna', concepto: 'Dispensador de agua' },
+  { area: 'operacion_interna', concepto: 'Cafetera' },
+  { area: 'operacion_interna', concepto: 'Oro para vitrina' },
+  { area: 'operacion_interna', concepto: 'Plata Rosset' },
+  { area: 'operacion_interna', concepto: 'Rolejería Luxe' },
+  { area: 'operacion_interna', concepto: 'Manuales internos de procesos y procedimientos' },
+  { area: 'operacion_interna', concepto: 'Porcentajes y términos normativos de contratación' },
 
-  // Finanzas y medios de pago
-  { area: 'finanzas', concepto: 'Activación de punto EFECTY' },
-  { area: 'finanzas', concepto: 'Usuario Efecty' },
-  { area: 'finanzas', concepto: 'Moneda de publicidad' },
-  { area: 'finanzas', concepto: 'Usuario MoneyGram' },
-  { area: 'finanzas', concepto: 'Usuario MSRED (letra de cambio)' },
-  { area: 'finanzas', concepto: 'Aviso de publicidad MASRED' },
-  { area: 'finanzas', concepto: 'Código Masred' },
-
-  // Papelería y mobiliario
-  { area: 'papeleria', concepto: 'Papelería de contingencia' },
-  { area: 'papeleria', concepto: 'Contratos preimpresos' },
-  { area: 'papeleria', concepto: 'Talonario de facturación' },
-  { area: 'papeleria', concepto: 'Libro de registro' },
-  { area: 'papeleria', concepto: 'Mueble de oficina' },
-  { area: 'papeleria', concepto: 'Sillas para clientes y colaboradores' },
-  { area: 'papeleria', concepto: 'Escritorios' },
-  { area: 'papeleria', concepto: 'Probador de joyería' },
-  { area: 'papeleria', concepto: 'TV' },
-
-  // Insumos y herramientas de joyería
-  { area: 'insumos', concepto: 'Insumos de contratación' },
-  { area: 'insumos', concepto: 'Tester' },
-  { area: 'insumos', concepto: 'Limas' },
-  { area: 'insumos', concepto: 'Bolsa de seguridad' },
-  { area: 'insumos', concepto: 'Gramera' },
-  { area: 'insumos', concepto: 'Lupas' },
-  { area: 'insumos', concepto: 'Paños para brillar' },
-  { area: 'insumos', concepto: 'Medidor de anillos' },
-  { area: 'insumos', concepto: 'Imán' },
-
-  // Electrodomésticos
-  { area: 'electrodomesticos', concepto: 'Horno microondas' },
-  { area: 'electrodomesticos', concepto: 'Nevera' },
-  { area: 'electrodomesticos', concepto: 'Dispensador de agua' },
-  { area: 'electrodomesticos', concepto: 'Cafetera' },
-
-  // Inventario
-  { area: 'inventario', concepto: 'Oro para vitrina' },
-  { area: 'inventario', concepto: 'Plata Rosset' },
-  { area: 'inventario', concepto: 'Rolejería Luxe' },
-
-  // Procesos y normativa interna
-  { area: 'procesos', concepto: 'Manuales internos de procesos y procedimientos' },
-  { area: 'procesos', concepto: 'Porcentajes y términos normativos de contratación' },
-
-  // Gestión humana
+  // Gestión Humana
   { area: 'gestion_humana', concepto: 'Afiliación del personal nuevo' },
   { area: 'gestion_humana', concepto: 'Dotación para el personal nuevo' },
   { area: 'gestion_humana', concepto: 'Capacitación del personal' },
   { area: 'gestion_humana', concepto: 'Registro y uso del software' },
 
-  // Marketing y publicidad
+  // Marketing y ventas (marketing + fabricación y exhibición)
   { area: 'marketing', concepto: 'Plotter de joyería' },
   { area: 'marketing', concepto: 'Aviso, letreros y valla' },
   { area: 'marketing', concepto: 'Exitómetro' },
@@ -133,22 +129,20 @@ export const APERTURA_TEMPLATE = [
   { area: 'marketing', concepto: 'Publicidad y decoración para el lanzamiento' },
   { area: 'marketing', concepto: 'Tablero de precio de contratación' },
   { area: 'marketing', concepto: 'Tableros de publicidad' },
-
-  // Fabricación y exhibición
-  { area: 'fabricacion', concepto: 'Fabricación de oro y plata' },
-  { area: 'fabricacion', concepto: 'Mapa de las sedes' },
-  { area: 'fabricacion', concepto: 'Lingote de oro' },
-  { area: 'fabricacion', concepto: 'Horario de apertura de la joyería' },
-  { area: 'fabricacion', concepto: 'Colores corporativos (paredes, fachada y rejas)' },
-  { area: 'fabricacion', concepto: 'Espejos habladores' },
-  { area: 'fabricacion', concepto: 'Exhibidores de lingotes' },
-  { area: 'fabricacion', concepto: 'Exhibidores de vitrina' },
-  { area: 'fabricacion', concepto: 'Volantes' },
-  { area: 'fabricacion', concepto: 'Tarjetas de garantía' },
-  { area: 'fabricacion', concepto: 'Tarjetas de presentación' },
-  { area: 'fabricacion', concepto: 'Estuche de joyería' },
-  { area: 'fabricacion', concepto: 'Bolsas de paño' },
-  { area: 'fabricacion', concepto: 'Bolsas de papel' },
+  { area: 'marketing', concepto: 'Fabricación de oro y plata' },
+  { area: 'marketing', concepto: 'Mapa de las sedes' },
+  { area: 'marketing', concepto: 'Lingote de oro' },
+  { area: 'marketing', concepto: 'Horario de apertura de la joyería' },
+  { area: 'marketing', concepto: 'Colores corporativos (paredes, fachada y rejas)' },
+  { area: 'marketing', concepto: 'Espejos habladores' },
+  { area: 'marketing', concepto: 'Exhibidores de lingotes' },
+  { area: 'marketing', concepto: 'Exhibidores de vitrina' },
+  { area: 'marketing', concepto: 'Volantes' },
+  { area: 'marketing', concepto: 'Tarjetas de garantía' },
+  { area: 'marketing', concepto: 'Tarjetas de presentación' },
+  { area: 'marketing', concepto: 'Estuche de joyería' },
+  { area: 'marketing', concepto: 'Bolsas de paño' },
+  { area: 'marketing', concepto: 'Bolsas de papel' },
 ];
 
 export const ESTADOS_APERTURA = ['pendiente', 'en_proceso', 'completado'];

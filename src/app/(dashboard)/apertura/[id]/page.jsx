@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { collection, deleteDoc, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { APERTURA_AREAS, ESTADOS_APERTURA, ESTADO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, PRIORIDAD_COLOR } from '@/lib/aperturaTemplate';
+import { APERTURA_AREAS, areaCanonica, ESTADOS_APERTURA, ESTADO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, PRIORIDAD_COLOR } from '@/lib/aperturaTemplate';
 
 function fmtFecha(s) {
   if (!s) return '—';
@@ -190,7 +190,7 @@ function TableroKanban({ items, areaNombrePorKey, canEditar, onCambiarEstado }) 
   const [filtroArea, setFiltroArea] = useState('__ALL__');
   const [colOver, setColOver] = useState(null);
 
-  const filtrados = filtroArea === '__ALL__' ? items : items.filter((it) => it.area === filtroArea);
+  const filtrados = filtroArea === '__ALL__' ? items : items.filter((it) => areaCanonica(it.area) === filtroArea);
 
   function handleDrop(e, estado) {
     e.preventDefault();
@@ -227,7 +227,7 @@ function TableroKanban({ items, areaNombrePorKey, canEditar, onCambiarEstado }) 
                 <Semaforo estado={estado} /> {ESTADO_LABEL[estado]} <span className="hint">{columna.length}</span>
               </div>
               {columna.map((item) => (
-                <TareaCard key={item.id} item={item} areaNombre={areaNombrePorKey[item.area]} canEditar={canEditar} onCambiarEstado={onCambiarEstado} />
+                <TareaCard key={item.id} item={item} areaNombre={areaNombrePorKey[areaCanonica(item.area)]} canEditar={canEditar} onCambiarEstado={onCambiarEstado} />
               ))}
               {columna.length === 0 && <div style={{ fontSize: 11.5, color: 'var(--text-dimmer)', textAlign: 'center', marginTop: 20 }}>Sin tareas</div>}
             </div>
@@ -338,7 +338,7 @@ export default function AperturaDetallePage({ params }) {
 
   const porArea = useMemo(() => {
     return APERTURA_AREAS.map((a) => {
-      const propios = items.filter((it) => it.area === a.key).sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0));
+      const propios = items.filter((it) => areaCanonica(it.area) === a.key).sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0));
       const completado = propios.filter((it) => it.estado === 'completado').length;
       const enProceso = propios.filter((it) => it.estado === 'en_proceso').length;
       return { ...a, items: propios, total: propios.length, completado, enProceso, pendiente: propios.length - completado - enProceso };
