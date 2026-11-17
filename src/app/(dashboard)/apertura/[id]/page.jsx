@@ -306,6 +306,118 @@ function AgregarTarea({ area, siguienteOrden, aperturaId, onAgregada }) {
   );
 }
 
+/**
+ * Bitácora de novedades: notas con fecha que cualquiera puede dejar sobre
+ * una tarea (completada o no) sin tener que reabrirla. Queda como historial
+ * permanente — así quien entre dentro de meses ve de una vez qué quedó
+ * pendiente de revisar, aunque el checklist ya esté al 100%.
+ */
+function HistorialNovedades({ aperturaId, items, novedades, canEditar, isAdmin, userEmail }) {
+  const [itemId, setItemId] = useState('__GENERAL__');
+  const [fecha, setFecha] = useState(hoyISO());
+  const [descripcion, setDescripcion] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const ordenadas = [...novedades].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.creadoEn || 0) - (a.creadoEn || 0));
+  const abiertas = ordenadas.filter((n) => n.estado === 'abierta');
+
+  async function handleAgregar() {
+    if (!descripcion.trim()) return;
+    setGuardando(true);
+    try {
+      const itemSel = itemId !== '__GENERAL__' ? items.find((it) => it.id === itemId) : null;
+      await setDoc(doc(collection(db, 'apertura_novedades')), {
+        aperturaId, itemId: itemSel ? itemSel.id : null, itemConcepto: itemSel ? itemSel.concepto : null,
+        fecha, descripcion: descripcion.trim(), estado: 'abierta', creadoPor: userEmail || null, creadoEn: Date.now(),
+      });
+      setDescripcion(''); setFecha(hoyISO()); setItemId('__GENERAL__');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function toggleResuelta(n) {
+    await updateDoc(doc(db, 'apertura_novedades', n.id), { estado: n.estado === 'abierta' ? 'resuelta' : 'abierta' });
+  }
+  async function eliminar(n) {
+    await deleteDoc(doc(db, 'apertura_novedades', n.id));
+  }
+
+  return (
+    <div className="panel" id="novedades">
+      <div className="panel-head">
+        <h3>Historial y novedades</h3>
+        <span className="hint">{abiertas.length} abierta{abiertas.length === 1 ? '' : 's'} · {ordenadas.length} en total</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+        Queda como bitácora: aunque una tarea ya esté "Completado", cualquiera puede dejar aquí una novedad con fecha
+        (ej. "faltan las herramientas") sin tener que reabrir la tarea — así el próximo que entre, aunque sea dentro
+        de meses, ve de una vez qué falta revisar.
+      </div>
+
+      {canEditar && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Tarea relacionada</div>
+            <select value={itemId} onChange={(e) => setItemId(e.target.value)} style={{ fontSize: 12.5, maxWidth: 220 }}>
+              <option value="__GENERAL__">General (toda la sucursal)</option>
+              {items.map((it) => <option key={it.id} value={it.id}>{it.concepto}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Fecha de la novedad</div>
+            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ fontSize: 12.5 }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Qué pasó</div>
+            <input
+              type="text" value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Ej. Faltan las herramientas, sigue en curso…" style={{ fontSize: 12.5, width: '100%' }}
+            />
+          </div>
+          <button className="btn" type="button" onClick={handleAgregar} disabled={guardando || !descripcion.trim()}>
+            {guardando ? 'Guardando…' : '+ Registrar novedad'}
+          </button>
+        </div>
+      )}
+
+      {ordenadas.length === 0 ? (
+        <div className="empty-note">Todavía no hay novedades registradas.</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th><th style={{ textAlign: 'left' }}>Tarea</th><th style={{ textAlign: 'left' }}>Novedad</th>
+                <th>Estado</th><th>Registrada por</th>{canEditar && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {ordenadas.map((n) => (
+                <tr key={n.id}>
+                  <td style={{ fontSize: 12 }}>{fmtFecha(n.fecha)}</td>
+                  <td className="name" style={{ fontSize: 12 }}>{n.itemConcepto || 'General'}</td>
+                  <td style={{ textAlign: 'left', fontSize: 12.5 }}>{n.descripcion}</td>
+                  <td><span className={`pill ${n.estado === 'abierta' ? 'neg' : 'pos'}`}>{n.estado === 'abierta' ? 'Abierta' : 'Resuelta'}</span></td>
+                  <td style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>{n.creadoPor || '—'}</td>
+                  {canEditar && (
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button className="btn-outline" type="button" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => toggleResuelta(n)}>
+                        {n.estado === 'abierta' ? 'Marcar resuelta' : 'Reabrir'}
+                      </button>
+                      {isAdmin && <button className="btn-outline" type="button" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => eliminar(n)}>Borrar</button>}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResponsableArea({ area, areaInfo, isAdmin }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(areaInfo?.responsableNombre || '');
@@ -347,11 +459,12 @@ function ResponsableArea({ area, areaInfo, isAdmin }) {
 }
 
 export default function AperturaDetallePage({ params }) {
-  const { isAdmin, role } = useAuth();
+  const { user, isAdmin, role } = useAuth();
   const canEditar = isAdmin || role === 'colaborador';
   const [apertura, setApertura] = useState(null);
   const [items, setItems] = useState([]);
   const [areas, setAreas] = useState({});
+  const [novedades, setNovedades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [colapsadas, setColapsadas] = useState(() => new Set());
   const [vista, setVista] = useState('lista');
@@ -370,7 +483,11 @@ export default function AperturaDetallePage({ params }) {
       snap.docs.forEach((d) => { map[d.id] = d.data(); });
       setAreas(map);
     });
-    return () => { unsub1(); unsub2(); unsub3(); };
+    const qNov = query(collection(db, 'apertura_novedades'), where('aperturaId', '==', params.id));
+    const unsub4 = onSnapshot(qNov, (snap) => {
+      setNovedades(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
   }, [params.id]);
 
   const porArea = useMemo(() => {
@@ -389,8 +506,14 @@ export default function AperturaDetallePage({ params }) {
     const completado = items.filter((it) => it.estado === 'completado').length;
     const enProceso = items.filter((it) => it.estado === 'en_proceso').length;
     const vencidas = items.filter(estaVencida).length;
-    return { total, completado, enProceso, vencidas, pendiente: total - completado - enProceso, pct: total ? Math.round((completado / total) * 100) : 0 };
+    const pct = total ? Math.round((completado / total) * 100) : 0;
+    const fechaCompletado100 = pct === 100
+      ? items.reduce((max, it) => (it.fechaFinalizacion && it.fechaFinalizacion > (max || 0) ? it.fechaFinalizacion : max), null)
+      : null;
+    return { total, completado, enProceso, vencidas, pendiente: total - completado - enProceso, pct, fechaCompletado100 };
   }, [items]);
+
+  const novedadesAbiertas = useMemo(() => novedades.filter((n) => n.estado === 'abierta').length, [novedades]);
 
   function toggleArea(key) {
     setColapsadas((prev) => {
@@ -453,6 +576,24 @@ export default function AperturaDetallePage({ params }) {
         )}
       </div>
 
+      {novedadesAbiertas > 0 ? (
+        <a href="#novedades" className="alert-card sev-high" style={{ display: 'flex', textDecoration: 'none', color: 'inherit' }}>
+          <div className="alert-icon">⚠</div>
+          <div className="alert-body">
+            <div className="alert-title">{novedadesAbiertas} novedad{novedadesAbiertas === 1 ? '' : 'es'} pendiente{novedadesAbiertas === 1 ? '' : 's'} de revisar</div>
+            <div className="alert-desc">Alguien dejó una observación sobre una o varias tareas — revísala en "Historial y novedades" más abajo.</div>
+          </div>
+        </a>
+      ) : totales.pct === 100 ? (
+        <div className="alert-card sev-low">
+          <div className="alert-icon">✓</div>
+          <div className="alert-body">
+            <div className="alert-title">Checklist completo al 100%{totales.fechaCompletado100 ? ` desde el ${fmtFecha(new Date(totales.fechaCompletado100).toISOString().slice(0, 10))}` : ''}</div>
+            <div className="alert-desc">Sin novedades abiertas por ahora. Si al verificar algo falta, déjalo anotado en "Historial y novedades" sin necesidad de reabrir la tarea.</div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="kpi-row">
         {apertura.fechaInicio && (
           <div className="kpi"><div className="label">Días en curso</div><div className="value">{diasDesde(apertura.fechaInicio)}</div></div>
@@ -484,6 +625,8 @@ export default function AperturaDetallePage({ params }) {
           })}
         </div>
       </div>
+
+      <HistorialNovedades aperturaId={apertura.id} items={items} novedades={novedades} canEditar={canEditar} isAdmin={isAdmin} userEmail={user?.email} />
 
       <div style={{ display: 'flex', gap: 8, margin: '0 0 16px' }}>
         <button className={`btn-toggle${vista === 'lista' ? ' active' : ''}`} type="button" onClick={() => setVista('lista')}>☰ Lista</button>

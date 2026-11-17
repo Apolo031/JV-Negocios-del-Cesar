@@ -168,6 +168,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Historial de novedades de una sucursal en apertura: notas con fecha
+    // (ej. "faltan las herramientas") que un colaborador deja después de
+    // verificar una tarea ya completada, sin tener que reabrirla ni perder
+    // el historial de revisiones anteriores. Nunca se edita el texto de una
+    // novedad ya guardada (solo se marca como resuelta o se borra), para que
+    // quede como una bitácora confiable.
+    match /apertura_novedades/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isColaborador();
+      allow update: if isAdmin() || isColaborador();
+      allow delete: if isAdmin();
+    }
+
     // Candados de coordinación entre procesos (ej. "importLock" para que una
     // importación de contratos desde la pantalla y una desde un script de
     // servidor no corran al mismo tiempo). No son datos del negocio.
