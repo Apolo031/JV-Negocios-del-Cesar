@@ -505,52 +505,11 @@ function HistorialNovedades({ aperturaId, items, novedades, canEditar, isAdmin, 
   );
 }
 
-function ResponsableArea({ area, areaInfo, isAdmin }) {
-  const [editando, setEditando] = useState(false);
-  const [nombre, setNombre] = useState(areaInfo?.responsableNombre || '');
-  const [correo, setCorreo] = useState(areaInfo?.responsableEmail || '');
-
-  useEffect(() => {
-    setNombre(areaInfo?.responsableNombre || '');
-    setCorreo(areaInfo?.responsableEmail || '');
-  }, [areaInfo?.responsableNombre, areaInfo?.responsableEmail]);
-
-  async function guardar() {
-    await setDoc(doc(db, 'apertura_areas', area), {
-      nombre: APERTURA_AREAS.find((a) => a.key === area)?.nombre || area,
-      responsableNombre: nombre.trim() || null, responsableEmail: correo.trim() || null,
-    }, { merge: true });
-    setEditando(false);
-  }
-
-  if (!isAdmin && !areaInfo?.responsableNombre && !areaInfo?.responsableEmail) return null;
-
-  if (editando) {
-    return (
-      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 11.5 }}>
-        <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Responsable" style={{ width: 120, fontSize: 11.5 }} />
-        <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="correo@..." style={{ width: 160, fontSize: 11.5 }} />
-        <button className="btn-outline" type="button" style={{ padding: '1px 7px', fontSize: 11 }} onClick={guardar}>Guardar</button>
-      </span>
-    );
-  }
-
-  return (
-    <span style={{ fontSize: 11.5, color: 'var(--text-dimmer)' }}>
-      {areaInfo?.responsableNombre || areaInfo?.responsableEmail
-        ? `Responsable: ${areaInfo?.responsableNombre || ''}${areaInfo?.responsableEmail ? ` · ${areaInfo.responsableEmail}` : ''}`
-        : 'Sin responsable asignado'}
-      {isAdmin && <button className="btn-outline" type="button" style={{ marginLeft: 8, padding: '1px 7px', fontSize: 11 }} onClick={() => setEditando(true)}>Editar</button>}
-    </span>
-  );
-}
-
 export default function AperturaDetallePage({ params }) {
   const { user, isAdmin, role } = useAuth();
   const canEditar = isAdmin || role === 'colaborador';
   const [apertura, setApertura] = useState(null);
   const [items, setItems] = useState([]);
-  const [areas, setAreas] = useState({});
   const [novedades, setNovedades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [colapsadas, setColapsadas] = useState(() => new Set());
@@ -566,16 +525,11 @@ export default function AperturaDetallePage({ params }) {
     const unsub2 = onSnapshot(q, (snap) => {
       setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
-    const unsub3 = onSnapshot(collection(db, 'apertura_areas'), (snap) => {
-      const map = {};
-      snap.docs.forEach((d) => { map[d.id] = d.data(); });
-      setAreas(map);
-    });
     const qNov = query(collection(db, 'apertura_novedades'), where('aperturaId', '==', params.id));
     const unsub4 = onSnapshot(qNov, (snap) => {
       setNovedades(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+    return () => { unsub1(); unsub2(); unsub4(); };
   }, [params.id]);
 
   const porArea = useMemo(() => {
@@ -584,7 +538,7 @@ export default function AperturaDetallePage({ params }) {
       const completado = propios.filter((it) => it.estado === 'completado').length;
       const enProceso = propios.filter((it) => it.estado === 'en_proceso').length;
       return { ...a, items: propios, total: propios.length, completado, enProceso, pendiente: propios.length - completado - enProceso };
-    }).filter((a) => a.total > 0);
+    });
   }, [items]);
 
   const areaNombrePorKey = useMemo(() => Object.fromEntries(APERTURA_AREAS.map((a) => [a.key, a.nombre])), []);
@@ -707,7 +661,15 @@ export default function AperturaDetallePage({ params }) {
         <div className="panel-head"><h3>Avance por área</h3></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {porArea.map((a) => {
-            const pct = a.total ? Math.round((a.completado / a.total) * 100) : 0;
+            if (a.total === 0) {
+              return (
+                <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 220, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{a.nombre}</div>
+                  <div style={{ flex: 1, fontSize: 11.5, color: 'var(--text-dimmer)' }}>Sin tareas todavía — agrégalas abajo</div>
+                </div>
+              );
+            }
+            const pct = Math.round((a.completado / a.total) * 100);
             const color = pct === 100 ? 'var(--green)' : pct >= 50 ? 'var(--gold)' : 'var(--red)';
             return (
               <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -740,9 +702,6 @@ export default function AperturaDetallePage({ params }) {
             <div className="panel-head" style={{ cursor: 'pointer' }} onClick={() => toggleArea(a.key)}>
               <h3>{a.nombre} <span className="hint">{a.completado}/{a.total}</span></h3>
               <span className="nav-chevron" aria-hidden="true" style={{ transform: colapsada ? 'rotate(-90deg)' : 'none' }}>▾</span>
-            </div>
-            <div style={{ marginBottom: 8 }} onClick={(e) => e.stopPropagation()}>
-              <ResponsableArea area={a.key} areaInfo={areas[a.key]} isAdmin={isAdmin} />
             </div>
             {!colapsada && (
               <div onClick={(e) => e.stopPropagation()}>

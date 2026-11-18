@@ -10,6 +10,7 @@
 // Mismos 5 grupos que se usan en el tablero de ClickUp de aperturas, para
 // que ambas herramientas queden organizadas igual.
 export const APERTURA_AREAS = [
+  { key: 'inicio_proyecto', nombre: 'Inicio del proyecto' },
   { key: 'legal', nombre: 'Documento legal' },
   { key: 'seguridad', nombre: 'Seguridad y montaje' },
   { key: 'operacion_interna', nombre: 'Operación interna' },
@@ -46,6 +47,11 @@ export function padreDe(item) {
   return item.padreConcepto || FALLBACK_PADRE_CONCEPTO[item.concepto] || null;
 }
 
+// "Inicio del proyecto" arranca vacío a propósito — sus tareas (lo que hay
+// que hacer antes de empezar: aprobaciones, presupuesto, etc.) se agregan
+// con "+ Agregar tarea" desde cualquier sucursal, que ya las replica en
+// todas las demás. Si se quiere que las sucursales NUEVAS también nazcan
+// con esas tareas por defecto, hay que agregarlas aquí también.
 export const APERTURA_TEMPLATE = [
   // Documento legal
   { area: 'legal', concepto: 'Nombre de la joyería y sociedad a la que pertenece' },
