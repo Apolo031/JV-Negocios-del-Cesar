@@ -30,6 +30,22 @@ export function areaCanonica(area) {
   return AREA_REMAP[area] || area;
 }
 
+// Tareas creadas antes de agregar el campo `padreConcepto` (ej. en "joyeria
+// Metro") no lo tienen guardado — esto cubre esos casos ya existentes para
+// que de todas formas se vean anidadas bajo su tarea principal, sin tener
+// que tocar nada en la base de datos. Las tareas nuevas ya guardan
+// `padreConcepto` directamente (ver APERTURA_TEMPLATE más abajo).
+const FALLBACK_PADRE_CONCEPTO = {
+  'Uso de suelos': 'Permisos municipales',
+  'Sayco & Acinpro': 'Permisos municipales',
+  'Sanidad': 'Permisos municipales',
+  'Bomberos': 'Permisos municipales',
+  'Carta a la estación de policía': 'Permisos municipales',
+};
+export function padreDe(item) {
+  return item.padreConcepto || FALLBACK_PADRE_CONCEPTO[item.concepto] || null;
+}
+
 export const APERTURA_TEMPLATE = [
   // Documento legal
   { area: 'legal', concepto: 'Nombre de la joyería y sociedad a la que pertenece' },
@@ -39,11 +55,11 @@ export const APERTURA_TEMPLATE = [
   { area: 'legal', concepto: 'Inscripción en la cámara de comercio' },
   { area: 'legal', concepto: 'Inscripción de industria y comercio' },
   { area: 'legal', concepto: 'Permisos municipales' },
-  { area: 'legal', concepto: 'Uso de suelos' },
-  { area: 'legal', concepto: 'Sayco & Acinpro' },
-  { area: 'legal', concepto: 'Sanidad' },
-  { area: 'legal', concepto: 'Bomberos' },
-  { area: 'legal', concepto: 'Carta a la estación de policía' },
+  { area: 'legal', concepto: 'Uso de suelos', padreConcepto: 'Permisos municipales' },
+  { area: 'legal', concepto: 'Sayco & Acinpro', padreConcepto: 'Permisos municipales' },
+  { area: 'legal', concepto: 'Sanidad', padreConcepto: 'Permisos municipales' },
+  { area: 'legal', concepto: 'Bomberos', padreConcepto: 'Permisos municipales' },
+  { area: 'legal', concepto: 'Carta a la estación de policía', padreConcepto: 'Permisos municipales' },
 
   // Seguridad y montaje
   { area: 'seguridad', concepto: 'Planos de la joyería para el montaje' },

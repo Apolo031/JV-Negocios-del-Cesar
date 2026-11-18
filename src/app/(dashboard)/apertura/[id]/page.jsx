@@ -2,10 +2,10 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { collection, deleteDoc, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, onSnapshot, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { APERTURA_AREAS, areaCanonica, ESTADOS_APERTURA, ESTADO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, PRIORIDAD_COLOR } from '@/lib/aperturaTemplate';
+import { APERTURA_AREAS, areaCanonica, padreDe, ESTADOS_APERTURA, ESTADO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, PRIORIDAD_COLOR } from '@/lib/aperturaTemplate';
 
 function fmtFecha(s) {
   if (!s) return '—';
@@ -20,6 +20,28 @@ function hoyISO() {
 /** Vencida = tiene fecha límite, ya pasó, y la tarea no está completada. */
 function estaVencida(item) {
   return !!(item.fechaLimite && item.fechaLimite < hoyISO() && item.estado !== 'completado');
+}
+
+/**
+ * Agrupa los items de un área en filas raíz (lo que se ve siempre) más sus
+ * hijos (lo que aparece al desplegar), usando `padreDe()` — que compara por
+ * el texto del concepto, no por id, para que funcione igual sin importar en
+ * qué sucursal esté cada copia de la tarea.
+ */
+function construirFilasAnidadas(items) {
+  const porConcepto = new Set(items.map((it) => it.concepto));
+  const padresConcepto = new Set(
+    items.map((it) => padreDe(it)).filter((p) => p && porConcepto.has(p))
+  );
+  const raiz = items.filter((it) => {
+    const p = padreDe(it);
+    return !(p && porConcepto.has(p));
+  });
+  return raiz.map((it) => ({
+    item: it,
+    esPadre: padresConcepto.has(it.concepto),
+    hijos: padresConcepto.has(it.concepto) ? items.filter((h) => padreDe(h) === it.concepto) : [],
+  }));
 }
 
 const ESTADO_PILL = { completado: 'pos', en_proceso: 'warn', pendiente: 'neg' };
@@ -106,7 +128,10 @@ function FlagPrioridad({ prioridad }) {
   return <span style={{ color: PRIORIDAD_COLOR[prioridad] }} title={PRIORIDAD_LABEL[prioridad]}>⚑</span>;
 }
 
-function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, onGuardarResponsable, onGuardarFechaLimite, onCambiarPrioridad, onEliminar, isAdmin }) {
+function ItemFila({
+  item, canEditar, onCambiarEstado, onGuardarObservaciones, onGuardarResponsable, onGuardarFechaLimite, onCambiarPrioridad, onEliminar, isAdmin,
+  esPadre, numHijos, expandido, onToggle, esHijo,
+}) {
   const [obs, setObs] = useState(item.observaciones || '');
   useEffect(() => { setObs(item.observaciones || ''); }, [item.observaciones]);
   const [responsable, setResponsable] = useState(item.responsable || '');
@@ -114,8 +139,19 @@ function ItemFila({ item, canEditar, onCambiarEstado, onGuardarObservaciones, on
   const vencida = estaVencida(item);
 
   return (
-    <tr>
-      <td className="name" style={{ fontSize: 13 }}>{item.concepto}</td>
+    <tr style={esHijo ? { background: 'var(--surface-2)' } : undefined}>
+      <td className="name" style={{ fontSize: 13, paddingLeft: esHijo ? 28 : undefined }}>
+        {esPadre && (
+          <button
+            type="button" onClick={onToggle} aria-label={expandido ? 'Colapsar' : 'Desplegar'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', marginRight: 6, fontSize: 11 }}
+          >
+            {expandido ? '▾' : '▸'}
+          </button>
+        )}
+        {item.concepto}
+        {esPadre && <span className="hint" style={{ marginLeft: 6 }}>{numHijos}</span>}
+      </td>
       <td>
         {canEditar ? (
           <input
@@ -275,33 +311,74 @@ function TableroKanban({ items, areaNombrePorKey, canEditar, onCambiarEstado }) 
   );
 }
 
-function AgregarTarea({ area, siguienteOrden, aperturaId, onAgregada }) {
+/**
+ * Agrega una tarea al checklist — y, para que quede igual en todas las
+ * sucursales (no solo en la que se está viendo), la replica de una vez en
+ * el checklist de cada una de las demás sucursales activas. Cada copia
+ * queda independiente desde ahí (marcar una como completada en una
+ * sucursal no afecta a las demás), pero la tarea en sí ya existe en todas.
+ */
+function AgregarTarea({ area, padresDisponibles, aperturaId, onAgregada }) {
   const [abierto, setAbierto] = useState(false);
   const [concepto, setConcepto] = useState('');
+  const [padreConcepto, setPadreConcepto] = useState('__NINGUNO__');
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
 
   async function handleAgregar() {
     if (!concepto.trim()) return;
-    await setDoc(doc(collection(db, 'apertura_items')), {
-      aperturaId, area, concepto: concepto.trim(), estado: 'pendiente',
-      orden: siguienteOrden, observaciones: null, actualizadoEn: Date.now(),
-    });
-    setConcepto('');
-    setAbierto(false);
-    onAgregada?.();
+    setGuardando(true);
+    setMensaje('');
+    try {
+      const orden = Date.now();
+      const base = {
+        area, concepto: concepto.trim(), estado: 'pendiente',
+        padreConcepto: padreConcepto !== '__NINGUNO__' ? padreConcepto : null,
+        orden, observaciones: null, actualizadoEn: Date.now(),
+      };
+      const otras = (await getDocs(collection(db, 'aperturas'))).docs.filter((d) => d.id !== aperturaId && !d.data().archivada);
+
+      const batch = writeBatch(db);
+      batch.set(doc(collection(db, 'apertura_items')), { ...base, aperturaId });
+      otras.forEach((a) => {
+        batch.set(doc(collection(db, 'apertura_items')), { ...base, aperturaId: a.id });
+      });
+      await batch.commit();
+
+      setConcepto(''); setPadreConcepto('__NINGUNO__'); setAbierto(false);
+      setMensaje(otras.length > 0 ? `Agregada aquí y en ${otras.length} sucursal${otras.length === 1 ? '' : 'es'} más.` : 'Agregada.');
+      onAgregada?.();
+    } finally {
+      setGuardando(false);
+    }
   }
 
   if (!abierto) {
-    return <button className="btn-outline" type="button" style={{ marginTop: 8, fontSize: 12 }} onClick={() => setAbierto(true)}>+ Agregar tarea</button>;
+    return (
+      <div>
+        <button className="btn-outline" type="button" style={{ marginTop: 8, fontSize: 12 }} onClick={() => setAbierto(true)}>+ Agregar tarea</button>
+        {mensaje && <span style={{ marginLeft: 10, fontSize: 11.5, color: 'var(--green)' }}>{mensaje}</span>}
+      </div>
+    );
   }
   return (
-    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <input
         type="text" value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Nueva tarea…"
-        style={{ fontSize: 12, flex: 1, maxWidth: 320 }} autoFocus
+        style={{ fontSize: 12, flex: 1, maxWidth: 280 }} autoFocus
         onKeyDown={(e) => { if (e.key === 'Enter') handleAgregar(); }}
       />
-      <button className="btn-outline" type="button" style={{ fontSize: 12 }} onClick={handleAgregar}>Guardar</button>
-      <button className="btn-outline" type="button" style={{ fontSize: 12 }} onClick={() => { setAbierto(false); setConcepto(''); }}>Cancelar</button>
+      {padresDisponibles.length > 0 && (
+        <select value={padreConcepto} onChange={(e) => setPadreConcepto(e.target.value)} style={{ fontSize: 12 }}>
+          <option value="__NINGUNO__">Sin anidar</option>
+          {padresDisponibles.map((p) => <option key={p} value={p}>Anidar bajo: {p}</option>)}
+        </select>
+      )}
+      <button className="btn-outline" type="button" onClick={handleAgregar} disabled={guardando} style={{ fontSize: 12 }}>
+        {guardando ? 'Guardando…' : 'Guardar'}
+      </button>
+      <button className="btn-outline" type="button" style={{ fontSize: 12 }} onClick={() => { setAbierto(false); setConcepto(''); setPadreConcepto('__NINGUNO__'); }}>Cancelar</button>
+      <div style={{ fontSize: 11, color: 'var(--text-dimmer)', width: '100%' }}>Se agrega aquí y en todas las demás sucursales activas.</div>
     </div>
   );
 }
@@ -477,6 +554,7 @@ export default function AperturaDetallePage({ params }) {
   const [novedades, setNovedades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [colapsadas, setColapsadas] = useState(() => new Set());
+  const [gruposColapsados, setGruposColapsados] = useState(() => new Set());
   const [vista, setVista] = useState('lista');
 
   useEffect(() => {
@@ -529,6 +607,14 @@ export default function AperturaDetallePage({ params }) {
     setColapsadas((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleGrupo(concepto) {
+    setGruposColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(concepto)) next.delete(concepto); else next.add(concepto);
       return next;
     });
   }
@@ -670,26 +756,41 @@ export default function AperturaDetallePage({ params }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {a.items.map((item) => (
-                        <Fragment key={item.id}>
-                          <ItemFila
-                            item={item} canEditar={canEditar} isAdmin={isAdmin}
-                            onCambiarEstado={handleCambiarEstado}
-                            onGuardarObservaciones={handleGuardarObservaciones}
-                            onGuardarResponsable={handleGuardarResponsable}
-                            onGuardarFechaLimite={handleGuardarFechaLimite}
-                            onCambiarPrioridad={handleCambiarPrioridad}
-                            onEliminar={handleEliminarItem}
-                          />
-                        </Fragment>
-                      ))}
+                      {construirFilasAnidadas(a.items).map(({ item, esPadre, hijos }) => {
+                        const expandido = !gruposColapsados.has(item.concepto);
+                        return (
+                          <Fragment key={item.id}>
+                            <ItemFila
+                              item={item} canEditar={canEditar} isAdmin={isAdmin}
+                              esPadre={esPadre} numHijos={hijos.length} expandido={expandido} onToggle={() => toggleGrupo(item.concepto)}
+                              onCambiarEstado={handleCambiarEstado}
+                              onGuardarObservaciones={handleGuardarObservaciones}
+                              onGuardarResponsable={handleGuardarResponsable}
+                              onGuardarFechaLimite={handleGuardarFechaLimite}
+                              onCambiarPrioridad={handleCambiarPrioridad}
+                              onEliminar={handleEliminarItem}
+                            />
+                            {esPadre && expandido && hijos.map((hijo) => (
+                              <ItemFila
+                                key={hijo.id} item={hijo} canEditar={canEditar} isAdmin={isAdmin} esHijo
+                                onCambiarEstado={handleCambiarEstado}
+                                onGuardarObservaciones={handleGuardarObservaciones}
+                                onGuardarResponsable={handleGuardarResponsable}
+                                onGuardarFechaLimite={handleGuardarFechaLimite}
+                                onCambiarPrioridad={handleCambiarPrioridad}
+                                onEliminar={handleEliminarItem}
+                              />
+                            ))}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
                 {isAdmin && (
                   <AgregarTarea
                     area={a.key} aperturaId={apertura.id}
-                    siguienteOrden={Math.max(0, ...a.items.map((it) => it.orden ?? 0)) + 1}
+                    padresDisponibles={[...new Set(a.items.filter((it) => !padreDe(it)).map((it) => it.concepto))]}
                   />
                 )}
               </div>
