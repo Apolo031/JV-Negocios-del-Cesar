@@ -81,6 +81,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Limpieza gratis de joyas: el cliente se registra (nombre/teléfono/
+    // sucursal) desde una página pública SIN sesión, así que esa escritura la
+    // hace el servidor con el Admin SDK (ver /api/limpieza-registro) y nunca
+    // pasa por aquí. Estas reglas solo cubren al personal, ya logueado,
+    // buscando un código y completando la ficha (categoría, metal, foto...).
+    match /limpiezas/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() || isColaborador();
+      allow delete: if isAdmin();
+    }
+
     // Contratos (préstamos sobre oro): ya no se guarda una fila por
     // contrato (con 100k+ filas agotaba la cuota de lecturas/escrituras de
     // Firestore solo con abrir la pantalla) — se guarda un único resumen con

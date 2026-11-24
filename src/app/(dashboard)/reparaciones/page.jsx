@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { BRANCHES, BRANCH_COLOR, MONTH_NAMES_FULL, fmtMoney, fmtNum } from '@/lib/dataHelpers';
 import { parseReparacionesBuffer } from '@/lib/reparacionesParser';
+import LimpiezaGratisView from './LimpiezaGratisView';
 
 const ARTICULOS = ['Cadena', 'Pulsera', 'Anillo', 'Aretes', 'Dije', 'Reloj', 'Otro'];
 const SERVICIOS = ['Brillado', 'Limpieza', 'Ajuste', 'Pulido', 'Enderezado', 'Soldadura', 'Otro'];
@@ -114,6 +115,7 @@ export default function ReparacionesPage() {
   const canEditar = isAdmin || role === 'colaborador'; // crear/editar — eliminar sigue siendo solo del admin
   const { reparaciones, addReparacion, updateReparacion, deleteReparacion } = useData();
 
+  const [vista, setVista] = useState('reparaciones');
   const [form, setForm] = useState(FORM_VACIO);
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -265,6 +267,15 @@ export default function ReparacionesPage() {
 
       {error && <div className="login-error">{error}</div>}
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button className={`btn-toggle${vista === 'reparaciones' ? ' active' : ''}`} type="button" onClick={() => setVista('reparaciones')}>🔧 Reparaciones</button>
+        <button className={`btn-toggle${vista === 'limpieza' ? ' active' : ''}`} type="button" onClick={() => setVista('limpieza')}>✨ Limpieza gratis</button>
+      </div>
+
+      {vista === 'limpieza' ? (
+        <LimpiezaGratisView canEditar={canEditar} isAdmin={isAdmin} />
+      ) : (
+      <>
       <div className="kpi-row">
         <div className="kpi"><div className="label">Reparaciones (filtro actual)</div><div className="value">{fmtNum(kpis.total)}</div></div>
         <div className="kpi"><div className="label">Pendientes / en proceso</div><div className="value">{fmtNum(kpis.pendientes)}</div></div>
@@ -504,6 +515,8 @@ export default function ReparacionesPage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

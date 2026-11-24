@@ -52,6 +52,17 @@ service firebase.storage {
                        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     }
 
+    // Fotos de las joyas registradas en "Limpieza gratis" (módulo
+    // Reparaciones) — las sube el personal (admin o colaborador) cuando
+    // completa la ficha después de limpiar la pieza.
+    match /limpiezas/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && (request.auth.token.role == 'admin' || request.auth.token.role == 'colaborador')
+                   && request.resource.size < 8 * 1024 * 1024   // máx. 8 MB por archivo
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
