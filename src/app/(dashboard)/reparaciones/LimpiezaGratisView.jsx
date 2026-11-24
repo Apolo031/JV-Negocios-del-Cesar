@@ -38,12 +38,23 @@ async function descargarFichaPNG(limpieza) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, 300);
 
-  ctx.fillStyle = '#e8cd7a';
-  ctx.font = '700 22px Arial';
-  ctx.fillText('JOYERÍA OROEXPRESS', 32, 50);
+  try {
+    const logo = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = '/oroexpress-logo.webp';
+    });
+    const logoH = 34;
+    ctx.drawImage(logo, 32, 20, logoH * (logo.width / logo.height), logoH);
+  } catch {
+    ctx.fillStyle = '#e8cd7a';
+    ctx.font = '700 22px Arial';
+    ctx.fillText('JOYERÍA OROEXPRESS', 32, 50);
+  }
   ctx.font = '600 12px Arial';
   ctx.fillStyle = '#c7a339';
-  ctx.fillText('COMPRAVENTA Y JOYERÍA · LIMPIEZA GRATIS', 32, 70);
+  ctx.fillText('COMPRAVENTA Y JOYERÍA · LIMPIEZA GRATIS', 32, 78);
 
   // Foto (si hay)
   if (limpieza.fotoUrl) {
@@ -166,27 +177,30 @@ function enlaceWhatsApp(limpieza) {
   return `https://wa.me/${telefono}?text=${texto}`;
 }
 
+// Colores fijos de marca (no las variables de tema de la app): esta tarjeta
+// representa un documento para el cliente, así que debe verse igual sin
+// importar si quien la generó tiene el panel en modo claro u oscuro.
 function FichaCard({ limpieza }) {
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', maxWidth: 420 }}>
-      <div style={{ background: 'linear-gradient(135deg, var(--bg), var(--surface-2))', padding: '20px 20px 60px' }}>
-        <div style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: 15 }}>JOYERÍA OROEXPRESS</div>
-        <div style={{ color: 'var(--gold)', fontSize: 10.5, letterSpacing: 0.5, marginTop: 2 }}>COMPRAVENTA Y JOYERÍA · LIMPIEZA GRATIS</div>
+    <div style={{ border: '1px solid #e2dcca', borderRadius: 12, overflow: 'hidden', maxWidth: 420, background: '#fff' }}>
+      <div style={{ background: 'linear-gradient(135deg, #12151c, #2a3242)', padding: '20px 20px 60px' }}>
+        <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 24, marginBottom: 12 }} />
+        <div style={{ color: '#c7a339', fontSize: 10.5, letterSpacing: 0.5, marginTop: -8 }}>COMPRAVENTA Y JOYERÍA · LIMPIEZA GRATIS</div>
         {limpieza.fotoUrl && (
-          <img src={limpieza.fotoUrl} alt="Foto de la joya" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '2px solid var(--gold-light)', float: 'right', marginTop: -36 }} />
+          <img src={limpieza.fotoUrl} alt="Foto de la joya" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '2px solid #e8cd7a', float: 'right', marginTop: -36 }} />
         )}
-        <div style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: 22, marginTop: 20 }}>
+        <div style={{ color: '#e8cd7a', fontWeight: 700, fontSize: 22, marginTop: 20 }}>
           {[limpieza.categoria, limpieza.metal, limpieza.kilataje].filter(Boolean).join(' · ') || '—'}
           {limpieza.pesoGramos ? ` · ${limpieza.pesoGramos} g` : ''}
         </div>
         <div style={{ color: '#fff', fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, marginTop: 10 }}>{limpieza.codigo}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>TITULAR</div>
+            <div style={{ fontSize: 10, color: '#8d96ac' }}>TITULAR</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{limpieza.nombreCliente}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>LIMPIEZA</div>
+            <div style={{ fontSize: 10, color: '#8d96ac' }}>LIMPIEZA</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtFechaCorta(limpieza.fechaAtencion)}</div>
           </div>
         </div>
@@ -203,7 +217,7 @@ function FichaCard({ limpieza }) {
           </>
         )}
       </div>
-      <div style={{ background: 'var(--gold)', color: '#1a1200', textAlign: 'center', fontSize: 12, fontWeight: 700, padding: '10px 0' }}>
+      <div style={{ background: '#c7a339', color: '#1a1200', textAlign: 'center', fontSize: 12, fontWeight: 700, padding: '10px 0' }}>
         Gracias por confiar en Oroexpress
       </div>
     </div>

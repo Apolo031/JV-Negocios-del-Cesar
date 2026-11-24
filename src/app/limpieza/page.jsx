@@ -9,6 +9,13 @@ import { SUCURSAL_INFO, distanciaKm } from '@/lib/sucursalesInfo';
 const SUCURSALES = BRANCHES.map((b) => ({ sucursal: b, ...SUCURSAL_INFO[b] })).sort((a, b) => a.ciudad.localeCompare(b.ciudad, 'es'));
 const CIUDADES = [...new Set(SUCURSALES.map((s) => s.ciudad))].sort((a, b) => a.localeCompare(b, 'es'));
 
+function fmtFechaLarga(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-');
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]} ${y}`;
+}
+
 export default function LimpiezaLandingPage() {
   const [sucursal, setSucursal] = useState(null);
   const [nombreCliente, setNombreCliente] = useState('');
@@ -58,7 +65,7 @@ export default function LimpiezaLandingPage() {
       if (!res.ok) throw new Error(data.error || 'No se pudo registrar la solicitud.');
       const url = `${window.location.origin}/limpieza/${data.codigo}`;
       const qr = await QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: '#17213a', light: '#ffffff' } });
-      setResultado({ codigo: data.codigo, qr });
+      setResultado({ codigo: data.codigo, qr, fechaLimite: data.fechaLimite });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -132,18 +139,49 @@ export default function LimpiezaLandingPage() {
             )}
           </>
         ) : (
-          <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 26, color: 'var(--text)' }}>¡Listo, {nombreCliente.split(' ')[0]}!</h1>
-            <p style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 8, marginBottom: 24 }}>
-              Preséntate en <b>{sucursal}</b> con este código para tu limpieza gratis.
-            </p>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, display: 'inline-block' }}>
-              <img src={resultado.qr} alt="Código QR" width={200} height={200} style={{ borderRadius: 8 }} />
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 20, fontWeight: 700, letterSpacing: 1, color: 'var(--gold-light)', marginTop: 14 }}>
-                {resultado.codigo}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}>
+              <div style={{ background: 'var(--gold)', height: 10 }} />
+              <div style={{ padding: '26px 28px 22px', textAlign: 'center' }}>
+                <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 36, margin: '0 auto 22px' }} />
+                <div style={{ color: '#6b6555', fontSize: 13 }}>Obtén una</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 34, color: '#17213a', lineHeight: 1.1 }}>Limpieza</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 34, color: '#a9812a', lineHeight: 1.15 }}>Gratis</div>
+                <div style={{ color: '#6b6555', fontSize: 13, marginTop: 2 }}>de tus joyas</div>
+              </div>
+
+              <div style={{ background: '#17213a', padding: '14px 28px', textAlign: 'center' }}>
+                <div style={{ color: '#9fb0cc', fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TU CÓDIGO</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 28, color: '#e8cd7a', marginTop: 4 }}>{resultado.codigo}</div>
+              </div>
+
+              <div style={{ padding: '22px 28px', textAlign: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 18, color: '#17213a' }}>{nombreCliente}</div>
+                <div style={{ color: '#6b6555', fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>
+                  Válido hasta el {fmtFechaLarga(resultado.fechaLimite)}<br />
+                  <b>En cualquier joyería Oroexpress</b>
+                </div>
+
+                <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #e2dcca' }}>
+                  <div style={{ fontSize: 12.5, color: '#262319' }}>
+                    Joyería elegida: <b>OROEXPRESS {sucursal?.toUpperCase()}</b>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b6555', marginTop: 2 }}>{SUCURSAL_INFO[sucursal]?.direccion}</div>
+                  <div style={{ fontSize: 11, color: '#9a927c', marginTop: 6 }}>
+                    ¿Te queda otra más cerca? No hay problema, puedes acercarte a cualquiera de nuestras joyerías.
+                  </div>
+                </div>
+
+                <img src={resultado.qr} alt="Código QR" width={110} height={110} style={{ marginTop: 18 }} />
+                <div style={{ fontSize: 10.5, color: '#9a927c', marginTop: 4 }}>Escanea para ver el estado de tu código</div>
+              </div>
+
+              <div style={{ background: 'var(--gold)', textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#1a1200', padding: '12px 0' }}>
+                Presenta este código en la joyería
               </div>
             </div>
-            <p style={{ color: 'var(--text-dimmer)', fontSize: 12, marginTop: 20 }}>
+
+            <p style={{ color: 'var(--text-dimmer)', fontSize: 12, marginTop: 20, textAlign: 'center' }}>
               Guarda una captura de pantalla — también puedes volver a <Link href={`/limpieza/${resultado.codigo}`} style={{ color: 'var(--gold-light)' }}>esta página</Link> cuando quieras para ver el estado.
             </p>
           </div>
