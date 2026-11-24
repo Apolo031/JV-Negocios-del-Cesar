@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '@/lib/firebaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRANCHES } from '@/lib/dataHelpers';
 import FichaLimpiezaCard from '@/components/FichaLimpiezaCard';
 import {
-  CATEGORIAS_JOYA, METALES_JOYA, KILATAJES_ORO,
-  normalizarCodigo, estadoEfectivoLimpieza,
+  CATEGORIAS_JOYA, METALES_JOYA, KILATAJES_ORO, DIAS_VALIDEZ_LIMPIEZA,
+  generarCodigoLimpieza, normalizarCodigo, estadoEfectivoLimpieza,
 } from '@/lib/limpiezaHelpers';
 
 function fmtFechaCorta(ms) {
@@ -306,10 +306,90 @@ function CompletarFicha({ limpieza, onGuardado }) {
   );
 }
 
-function BuscarCodigo({ limpiezas, isAdmin }) {
-  const [codigoInput, setCodigoInput] = useState('');
-  const [codigoActivo, setCodigoActivo] = useState(null);
+/**
+ * Para cuando el cliente llega directo a la joyería sin haber pasado antes
+ * por el link/QR público — queda registrado igual, con su propio código y
+ * seguimiento, y se abre de una vez en "Buscar código" para completar la
+ * ficha en el mismo momento (nombre, teléfono y la joya juntos).
+ */
+function RegistrarEnTienda({ onRegistrado }) {
+  const [abierto, setAbierto] = useState(false);
+  const [nombreCliente, setNombreCliente] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [sucursal, setSucursal] = useState(BRANCHES[0]);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleRegistrar() {
+    if (!nombreCliente.trim() || !telefono.trim()) { setError('Completa el nombre y el teléfono.'); return; }
+    setGuardando(true);
+    setError('');
+    try {
+      const codigo = generarCodigoLimpieza();
+      const ahora = Date.now();
+      await setDoc(doc(collection(db, 'limpiezas')), {
+        codigo, sucursal, nombreCliente: nombreCliente.trim(), telefono: telefono.trim(),
+        estado: 'pendiente', fechaRegistro: ahora,
+        fechaLimite: new Date(ahora + DIAS_VALIDEZ_LIMPIEZA * 86400000).toISOString().slice(0, 10),
+        esClienteNuevo: null, categoria: null, metal: null, kilataje: null,
+        pesoGramos: null, observacion: null, fotoUrl: null, atendidoPor: null, fechaAtencion: null,
+      });
+      setNombreCliente(''); setTelefono(''); setAbierto(false);
+      onRegistrado?.(codigo);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (!abierto) {
+    return <button className="btn" type="button" onClick={() => setAbierto(true)} style={{ marginBottom: 16 }}>+ Registrar cliente en tienda</button>;
+  }
+  return (
+    <div className="panel">
+      <div className="panel-head"><h3>Registrar cliente en tienda</h3></div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+        Para cuando el cliente llega directo, sin haber pedido su código por internet — queda con el mismo
+        seguimiento y pasas de una vez a completar la ficha (categoría, metal, peso, foto...).
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Sucursal</div>
+          <select value={sucursal} onChange={(e) => setSucursal(e.target.value)}>
+            {BRANCHES.map((b) => <option key={b}>{b}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Nombre completo</div>
+          <input type="text" value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} style={{ width: 200 }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Teléfono</div>
+          <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} style={{ width: 160 }} />
+        </div>
+        <button className="btn" type="button" onClick={handleRegistrar} disabled={guardando}>
+          {guardando ? 'Registrando…' : 'Registrar y continuar'}
+        </button>
+        <button className="btn-outline" type="button" onClick={() => { setAbierto(false); setError(''); }}>Cancelar</button>
+      </div>
+      {error && <div className="login-error">{error}</div>}
+    </div>
+  );
+}
+
+function BuscarCodigo({ limpiezas, isAdmin, codigoInicial }) {
+  const [codigoInput, setCodigoInput] = useState(codigoInicial || '');
+  const [codigoActivo, setCodigoActivo] = useState(codigoInicial ? normalizarCodigo(codigoInicial) : null);
   const [mensaje, setMensaje] = useState('');
+
+  // Cuando se abre un registro desde "Limpiezas pedidas", precarga y busca
+  // ese código de una vez, sin que el admin tenga que volver a escribirlo.
+  useEffect(() => {
+    if (!codigoInicial) return;
+    setCodigoInput(codigoInicial);
+    setCodigoActivo(normalizarCodigo(codigoInicial));
+  }, [codigoInicial]);
 
   const encontrada = codigoActivo ? limpiezas.find((l) => normalizarCodigo(l.codigo) === codigoActivo) : null;
 
@@ -401,7 +481,7 @@ function limitesDeDiaLocal(iso) {
   };
 }
 
-function LimpiezasPedidas({ limpiezas, canEditar }) {
+function LimpiezasPedidas({ limpiezas, canEditar, onAbrirCodigo }) {
   const [desde, setDesde] = useState(hace30Dias());
   const [hasta, setHasta] = useState(hoyISO());
   const [sucursal, setSucursal] = useState('__ALL__');
@@ -493,7 +573,7 @@ function LimpiezasPedidas({ limpiezas, canEditar }) {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>Cliente</th><th>Sucursal</th><th>Código</th><th>Registrado</th>
-                  <th>Estado</th><th>Joya</th><th>Gramos</th>{canEditar && <th></th>}
+                  <th>Estado</th><th>Joya</th><th>Gramos</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -506,13 +586,12 @@ function LimpiezasPedidas({ limpiezas, canEditar }) {
                     <td><span className={`pill ${ESTADO_PILL[estadoEfectivoLimpieza(l)]}`}>{ESTADO_TEXTO[estadoEfectivoLimpieza(l)]}</span></td>
                     <td>{[l.categoria, l.metal, l.kilataje].filter(Boolean).join(' · ') || '—'}</td>
                     <td>{l.pesoGramos || '—'}</td>
-                    {canEditar && (
-                      <td>
-                        {estadoEfectivoLimpieza(l) === 'pendiente' && (
-                          <button className="btn-outline" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => marcarNoRealizada(l.id)}>No realizada</button>
-                        )}
-                      </td>
-                    )}
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button className="btn-outline" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onAbrirCodigo(l.codigo)}>Abrir</button>
+                      {canEditar && estadoEfectivoLimpieza(l) === 'pendiente' && (
+                        <button className="btn-outline" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => marcarNoRealizada(l.id)}>No realizada</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -528,6 +607,7 @@ export default function LimpiezaGratisView({ canEditar, isAdmin }) {
   const [limpiezas, setLimpiezas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState('buscar');
+  const [codigoAbierto, setCodigoAbierto] = useState(null);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'limpiezas'), (snap) => {
@@ -537,6 +617,11 @@ export default function LimpiezaGratisView({ canEditar, isAdmin }) {
     return () => unsub();
   }, []);
 
+  function abrirCodigo(codigo) {
+    setCodigoAbierto(codigo);
+    setSub('buscar');
+  }
+
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Cargando…</div>;
 
   return (
@@ -545,7 +630,12 @@ export default function LimpiezaGratisView({ canEditar, isAdmin }) {
         <button className={`btn-toggle${sub === 'buscar' ? ' active' : ''}`} type="button" onClick={() => setSub('buscar')}>Buscar código</button>
         <button className={`btn-toggle${sub === 'pedidas' ? ' active' : ''}`} type="button" onClick={() => setSub('pedidas')}>Limpiezas pedidas</button>
       </div>
-      {sub === 'buscar' ? <BuscarCodigo limpiezas={limpiezas} isAdmin={isAdmin} /> : <LimpiezasPedidas limpiezas={limpiezas} canEditar={canEditar} />}
+      {canEditar && <RegistrarEnTienda onRegistrado={abrirCodigo} />}
+      {sub === 'buscar' ? (
+        <BuscarCodigo limpiezas={limpiezas} isAdmin={isAdmin} codigoInicial={codigoAbierto} />
+      ) : (
+        <LimpiezasPedidas limpiezas={limpiezas} canEditar={canEditar} onAbrirCodigo={abrirCodigo} />
+      )}
     </div>
   );
 }
