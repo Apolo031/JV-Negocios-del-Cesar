@@ -22,6 +22,7 @@ export async function GET(request) {
       fechaRegistro: d.fechaRegistro, fechaLimite: d.fechaLimite,
       categoria: d.categoria, metal: d.metal, kilataje: d.kilataje, pesoGramos: d.pesoGramos,
       observacion: d.observacion, fotoUrl: d.fotoUrl, fechaAtencion: d.fechaAtencion,
+      esClienteNuevo: d.esClienteNuevo,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'No se pudo consultar el código.' }, { status: 500 });

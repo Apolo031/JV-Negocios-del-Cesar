@@ -2,14 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import FichaLimpiezaCard from '@/components/FichaLimpiezaCard';
 import { ESTADO_LIMPIEZA_LABEL, estadoEfectivoLimpieza } from '@/lib/limpiezaHelpers';
 
 function fmtFechaCorta(ms) {
   if (!ms) return '—';
-  return new Date(ms).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(ms).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function fmtFechaLarga(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-');
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]} ${y}`;
 }
 
-const ESTADO_COLOR = { pendiente: 'var(--gold)', atendida: 'var(--green)', no_realizada: 'var(--red)', vencida: 'var(--red)' };
+const ESTADO_COLOR = { pendiente: '#c7a339', atendida: '#4f9d69', no_realizada: '#c1443a', vencida: '#c1443a' };
 const ESTADO_TEXTO = { ...ESTADO_LIMPIEZA_LABEL, vencida: 'Código vencido' };
 
 export default function LimpiezaEstadoPage({ params }) {
@@ -28,54 +35,49 @@ export default function LimpiezaEstadoPage({ params }) {
       .finally(() => setLoading(false));
   }, [params.codigo]);
 
+  const estado = datos ? estadoEfectivoLimpieza(datos) : null;
+
   return (
     <div className="login-shell">
-      <div style={{ width: '100%', maxWidth: 440, textAlign: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {loading ? (
           <div style={{ color: 'var(--text-dim)' }}>Consultando…</div>
         ) : error ? (
-          <>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, color: 'var(--text)' }}>No encontramos ese código</h1>
+          <div style={{ textAlign: 'center' }}>
+            <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 32, marginBottom: 20 }} />
+            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: 'var(--text)' }}>No encontramos ese código</h1>
             <p style={{ color: 'var(--text-dim)', fontSize: 13.5, marginTop: 10 }}>{error}</p>
             <Link href="/limpieza" className="btn" style={{ display: 'inline-block', marginTop: 20, textDecoration: 'none' }}>Pedir un código nuevo</Link>
-          </>
+          </div>
+        ) : estado === 'atendida' ? (
+          <FichaLimpiezaCard limpieza={datos} />
         ) : (
-          <>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 700, letterSpacing: 1, color: 'var(--gold-light)' }}>
-              {datos.codigo}
+          // Sin ficha todavía (pendiente, no realizada o vencida): mismo estilo
+          // de tarjeta, sin los datos de la joya que aún no existen.
+          <div style={{ border: '1px solid #e2dcca', borderRadius: 12, overflow: 'hidden', maxWidth: 420, width: '100%', background: '#fff' }}>
+            <div style={{ background: 'linear-gradient(135deg, #12151c, #2a3242)', padding: '22px 20px 28px', textAlign: 'center' }}>
+              <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 26 }} />
+              <div style={{ color: '#c7a339', fontSize: 10.5, letterSpacing: 0.5, marginTop: 6 }}>LIMPIEZA GRATIS</div>
+              <div style={{ color: '#fff', fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 700, marginTop: 16 }}>{datos.codigo}</div>
             </div>
-            <div
-              style={{
-                display: 'inline-block', marginTop: 14, padding: '6px 16px', borderRadius: 99, fontSize: 13, fontWeight: 700,
-                color: ESTADO_COLOR[estadoEfectivoLimpieza(datos)], background: 'var(--surface-2)',
-              }}
-            >
-              {ESTADO_TEXTO[estadoEfectivoLimpieza(datos)]}
-            </div>
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, marginTop: 24, textAlign: 'left' }}>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Sucursal</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{datos.sucursal}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Registrado el</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{fmtFechaCorta(datos.fechaRegistro)}</div>
-
-              {datos.estado === 'atendida' && (
-                <>
-                  <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Tu joya</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>
-                    {[datos.categoria, datos.metal, datos.kilataje, datos.pesoGramos ? `${datos.pesoGramos} g` : null].filter(Boolean).join(' · ') || '—'}
-                  </div>
-                  {datos.fotoUrl && (
-                    <img src={datos.fotoUrl} alt="Foto de la joya" style={{ width: '100%', borderRadius: 10, marginTop: 6 }} />
-                  )}
-                </>
-              )}
-
-              {estadoEfectivoLimpieza(datos) === 'pendiente' && (
-                <div style={{ fontSize: 12.5, color: 'var(--text-dimmer)' }}>Válido hasta el {fmtFechaCorta(new Date(datos.fechaLimite).getTime())}.</div>
+            <div style={{ padding: '22px 24px', textAlign: 'center' }}>
+              <div
+                style={{
+                  display: 'inline-block', padding: '5px 16px', borderRadius: 99, fontSize: 12.5, fontWeight: 700,
+                  color: ESTADO_COLOR[estado], background: '#f6f4ef', marginBottom: 18,
+                }}
+              >
+                {ESTADO_TEXTO[estado]}
+              </div>
+              <div style={{ fontSize: 10, color: '#6b6555' }}>SUCURSAL</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Oroexpress {datos.sucursal}</div>
+              <div style={{ fontSize: 10, color: '#6b6555' }}>REGISTRADO EL</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{fmtFechaCorta(datos.fechaRegistro)}</div>
+              {estado === 'pendiente' && (
+                <div style={{ fontSize: 11.5, color: '#9a927c', marginTop: 14 }}>Válido hasta el {fmtFechaLarga(datos.fechaLimite)} en cualquier joyería Oroexpress.</div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
