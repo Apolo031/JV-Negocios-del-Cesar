@@ -168,8 +168,21 @@ async function descargarFichaPNG(limpieza) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * El cliente/personal suele escribir el celular en formato local (10 dígitos,
+ * ej. "323 782 4400"), sin el indicativo de Colombia — pero wa.me necesita el
+ * número completo con indicativo, si no lo adivina mal (ej. lo toma como si
+ * fuera de Bélgica, +32). Si ya viene con el 57 adelante (12 dígitos), se deja
+ * igual; si no, se le antepone.
+ */
+function telefonoWhatsApp(telefono) {
+  const digitos = (telefono || '').replace(/\D/g, '');
+  if (digitos.length === 10) return `57${digitos}`;
+  return digitos;
+}
+
 function enlaceWhatsApp(limpieza) {
-  const telefono = (limpieza.telefono || '').replace(/\D/g, '');
+  const telefono = telefonoWhatsApp(limpieza.telefono);
   const url = `${window.location.origin}/limpieza/${limpieza.codigo}`;
   const texto = encodeURIComponent(
     `¡Hola ${limpieza.nombreCliente.split(' ')[0]}! Tu joya (${[limpieza.categoria, limpieza.metal, limpieza.kilataje].filter(Boolean).join(' ')}) ya quedó limpia en Oroexpress ${limpieza.sucursal}. Aquí está tu ficha: ${url}`
