@@ -375,11 +375,30 @@ function BuscarCodigo({ limpiezas, isAdmin }) {
   );
 }
 
+// Fecha de HOY en hora local (no UTC): usar toISOString() aquí se corre de
+// día según la hora y el huso horario (ej. Colombia, UTC-5), y mezclarlo
+// después con new Date(iso).setHours(...) (que sí es local) recortaba el
+// rango un par de horas antes de lo debido — por eso "Limpiezas pedidas"
+// no mostraba los registros del mismo día.
+function fechaLocalISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 function hace30Dias() {
-  return new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  return fechaLocalISO(new Date(Date.now() - 30 * 86400000));
 }
 function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
+  return fechaLocalISO(new Date());
+}
+/** Límites de un día en milisegundos, calculados en hora local a partir de un string YYYY-MM-DD. */
+function limitesDeDiaLocal(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return {
+    inicio: new Date(y, m - 1, d, 0, 0, 0, 0).getTime(),
+    fin: new Date(y, m - 1, d, 23, 59, 59, 999).getTime(),
+  };
 }
 
 function LimpiezasPedidas({ limpiezas, canEditar }) {
@@ -388,8 +407,8 @@ function LimpiezasPedidas({ limpiezas, canEditar }) {
   const [sucursal, setSucursal] = useState('__ALL__');
 
   const filtradas = useMemo(() => {
-    const desdeMs = new Date(desde).setHours(0, 0, 0, 0);
-    const hastaMs = new Date(hasta).setHours(23, 59, 59, 999);
+    const desdeMs = limitesDeDiaLocal(desde).inicio;
+    const hastaMs = limitesDeDiaLocal(hasta).fin;
     return limpiezas.filter((l) => {
       if (l.fechaRegistro < desdeMs || l.fechaRegistro > hastaMs) return false;
       if (sucursal !== '__ALL__' && l.sucursal !== sucursal) return false;
@@ -478,7 +497,7 @@ function LimpiezasPedidas({ limpiezas, canEditar }) {
                 </tr>
               </thead>
               <tbody>
-                {filtradas.sort((a, b) => b.fechaRegistro - a.fechaRegistro).map((l) => (
+                {[...filtradas].sort((a, b) => b.fechaRegistro - a.fechaRegistro).map((l) => (
                   <tr key={l.id}>
                     <td className="name">{l.nombreCliente}</td>
                     <td>{l.sucursal}</td>
