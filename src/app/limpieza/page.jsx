@@ -78,12 +78,31 @@ export default function LimpiezaLandingPage() {
       <div style={{ width: '100%', maxWidth: 640 }}>
         {!resultado ? (
           <>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 32, lineHeight: 1.25, color: 'var(--text)' }}>
-              Obtén una limpieza <i style={{ color: 'var(--gold-light)' }}>gratis</i> de tus joyas
-            </h1>
-            <p style={{ color: 'var(--text-dim)', fontSize: 14.5, marginTop: 10, marginBottom: 32 }}>
-              Pide tu código, llévalo a cualquiera de nuestras joyerías y te limpiamos tus joyas sin costo.
-            </p>
+            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, background: 'linear-gradient(160deg, #fffdf8 55%, #f6ecd0 100%)', padding: '38px 30px 32px', marginBottom: 28, border: '1px solid #e8dfc2' }}>
+              <svg style={{ position: 'absolute', top: -22, left: -22, width: 150, height: 150, pointerEvents: 'none' }} viewBox="0 0 150 150" aria-hidden="true">
+                <path d="M12,138 A126,126 0 0,1 138,12" fill="none" stroke="#c7a339" strokeWidth="2" opacity="0.55" />
+              </svg>
+              <svg style={{ position: 'absolute', bottom: -50, right: -50, width: 230, height: 230, pointerEvents: 'none' }} viewBox="0 0 230 230" aria-hidden="true">
+                <circle cx="115" cy="115" r="115" fill="#12151c" opacity="0.055" />
+              </svg>
+
+              <div style={{ position: 'relative' }}>
+                <div style={{ color: '#c7a339', fontSize: 22, marginBottom: 4 }}>✦</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: '#6b6555' }}>Obtén una</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 42, lineHeight: 1.05, color: '#17213a' }}>Limpieza</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 42, lineHeight: 1.15, color: '#a9812a' }}>Gratis</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: '#6b6555', marginBottom: 20 }}>de tus joyas</div>
+
+                <div style={{ width: 54, height: 2, background: '#c7a339', marginBottom: 18 }} />
+
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16 }}>📍</span>
+                  <p style={{ fontSize: 14, color: '#262319', lineHeight: 1.5, margin: 0 }}>
+                    Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: '#a9812a' }}>gratis</b>.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>1. Escoge la joyería más cercana</div>
 
