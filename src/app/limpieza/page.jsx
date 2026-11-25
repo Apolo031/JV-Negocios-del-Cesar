@@ -118,20 +118,61 @@ export default function LimpiezaLandingPage() {
         <div style={{ position: 'relative' }}>
           {!resultado ? (
             <>
-              <div style={{ padding: '10px 2px 32px' }}>
-                <div style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM }}>Obtén una</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 42, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 42, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM, marginBottom: 20 }}>de tus joyas</div>
+              <div style={{ padding: '10px 2px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
+                <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                  <div style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM }}>Obtén una</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 42, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 42, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM, marginBottom: 20 }}>de tus joyas</div>
 
-                <div style={{ width: 54, height: 2, background: GOLD, marginBottom: 18 }} />
+                  <div style={{ width: 54, height: 2, background: GOLD, marginBottom: 18 }} />
 
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 16 }}>📍</span>
-                  <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.5, margin: 0 }}>
-                    Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
-                  </p>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 16 }}>📍</span>
+                    <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.5, margin: 0 }}>
+                      Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ flex: '0 1 220px', minWidth: 180, display: 'flex', justifyContent: 'center' }}>
+                  <svg viewBox="0 0 300 300" style={{ width: '100%', maxWidth: 240 }} aria-hidden="true">
+                    <defs>
+                      <radialGradient id="joyaPedestal" cx="50%" cy="52%" r="62%">
+                        <stop offset="0%" stopColor="#fffdf8" />
+                        <stop offset="100%" stopColor="#f0e4c2" />
+                      </radialGradient>
+                    </defs>
+                    <ellipse cx="150" cy="168" rx="128" ry="98" fill="url(#joyaPedestal)" stroke="#e8dfc2" strokeWidth="1.5" />
+
+                    {/* Collar, dibujo original */}
+                    <path d="M70,92 C70,142 110,172 150,172 C190,172 230,142 230,92" fill="none" stroke={GOLD} strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity="0.85" />
+                    <g transform="translate(150,174)">
+                      <rect x="-9" y="-9" width="18" height="18" transform="rotate(45)" fill="none" stroke={GOLD_DEEP} strokeWidth="2" />
+                      <rect x="-4" y="-4" width="8" height="8" transform="rotate(45)" fill={GOLD_LIGHT} opacity="0.65" />
+                    </g>
+
+                    {/* Aretes, dibujo original */}
+                    <g transform="translate(95,205)">
+                      <circle r="16" fill="none" stroke={GOLD} strokeWidth="2.4" />
+                      <circle cx="0" cy="16" r="3" fill={GOLD_LIGHT} />
+                    </g>
+                    <g transform="translate(122,224)">
+                      <circle r="16" fill="none" stroke={GOLD} strokeWidth="2.4" opacity="0.8" />
+                      <circle cx="0" cy="16" r="3" fill={GOLD_LIGHT} opacity="0.8" />
+                    </g>
+
+                    {/* Anillo, dibujo original */}
+                    <g transform="translate(206,214)">
+                      <circle r="14" fill="none" stroke={GOLD_DEEP} strokeWidth="2.4" />
+                      <rect x="-6" y="-20" width="12" height="12" transform="rotate(45)" fill="none" stroke={GOLD_DEEP} strokeWidth="2" />
+                      <rect x="-3" y="-17" width="6" height="6" transform="rotate(45)" fill={GOLD_LIGHT} />
+                    </g>
+
+                    <text x="240" y="78" fontSize="16" fill={GOLD}>✦</text>
+                    <text x="52" y="66" fontSize="11" fill={GOLD} opacity="0.7">✦</text>
+                  </svg>
                 </div>
               </div>
 
