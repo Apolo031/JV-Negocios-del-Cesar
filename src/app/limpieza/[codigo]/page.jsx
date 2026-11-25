@@ -38,16 +38,24 @@ export default function LimpiezaEstadoPage({ params }) {
   const estado = datos ? estadoEfectivoLimpieza(datos) : null;
 
   return (
-    <div className="login-shell">
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #fffdf8 0%, #f6ecd0 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {loading ? (
-          <div style={{ color: 'var(--text-dim)' }}>Consultando…</div>
+          <div style={{ color: '#6b6555' }}>Consultando…</div>
         ) : error ? (
           <div style={{ textAlign: 'center' }}>
             <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 32, marginBottom: 20 }} />
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: 'var(--text)' }}>No encontramos ese código</h1>
-            <p style={{ color: 'var(--text-dim)', fontSize: 13.5, marginTop: 10 }}>{error}</p>
-            <Link href="/limpieza" className="btn" style={{ display: 'inline-block', marginTop: 20, textDecoration: 'none' }}>Pedir un código nuevo</Link>
+            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: '#17213a' }}>No encontramos ese código</h1>
+            <p style={{ color: '#6b6555', fontSize: 13.5, marginTop: 10 }}>{error}</p>
+            <Link
+              href="/limpieza"
+              style={{
+                display: 'inline-block', marginTop: 20, textDecoration: 'none', background: '#c7a339', color: '#1a1200',
+                borderRadius: 10, padding: '10px 18px', fontSize: 13.5, fontWeight: 700,
+              }}
+            >
+              Pedir un código nuevo
+            </Link>
           </div>
         ) : estado === 'atendida' ? (
           <FichaLimpiezaCard limpieza={datos} />
