@@ -144,7 +144,7 @@ export default function LimpiezaLandingPage() {
                   <path d="M52,360 V138 A82,82 0 0,1 138,52 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.24" />
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 24, position: 'relative' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, position: 'relative' }}>
                   <div className="hero-fade-1" style={{ maxWidth: 420 }}>
                     <div className="sparkle-pulse" style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén un</div>
@@ -154,7 +154,7 @@ export default function LimpiezaLandingPage() {
 
                     <div style={{ width: 60, height: 2, background: GOLD, margin: '0 auto 18px' }} />
 
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'center', marginBottom: 24, textAlign: 'left' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'center', textAlign: 'left' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD_DEEP} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true">
                         <circle cx="12" cy="10" r="3.2" />
                         <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
