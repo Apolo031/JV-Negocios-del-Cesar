@@ -163,18 +163,6 @@ export default function LimpiezaLandingPage() {
                         Escoge la joyería más cercana de ti y obtén un mantenimiento de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
                       </p>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById('paso-1')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      style={{
-                        background: GOLD, color: '#1a1200', border: 'none', borderRadius: 10,
-                        padding: '13px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
-                        boxShadow: '0 6px 18px rgba(199,163,57,0.3)',
-                      }}
-                    >
-                      Reclama tu mantenimiento gratis ↓
-                    </button>
                   </div>
 
                   <div className="hero-fade-2" style={{ display: 'flex', justifyContent: 'center' }}>
