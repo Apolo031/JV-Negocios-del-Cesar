@@ -36,6 +36,19 @@ function fmtFechaLarga(iso) {
   return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]} ${y}`;
 }
 
+function ArcosDecorativos({ size = 150, opacity = 0.18 }) {
+  return (
+    <svg
+      viewBox="0 0 150 150"
+      style={{ position: 'absolute', top: 0, right: 0, width: size, height: size, pointerEvents: 'none' }}
+      aria-hidden="true"
+    >
+      <path d="M150,150 V50 A100,100 0 0,0 50,-50 H150" fill="none" stroke={GOLD} strokeWidth="1.5" opacity={opacity} />
+      <path d="M150,150 V66 A84,84 0 0,0 66,-18 H150" fill="none" stroke={GOLD} strokeWidth="1.5" opacity={opacity * 0.85} />
+    </svg>
+  );
+}
+
 function PasoTitulo({ n, children }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -151,7 +164,8 @@ export default function LimpiezaLandingPage() {
                 </div>
               </div>
 
-              <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px', marginBottom: 20 }}>
+              <div style={{ position: 'relative', overflow: 'hidden', background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px', marginBottom: 20 }}>
+                <ArcosDecorativos />
                 <PasoTitulo n={1}>Escoge la joyería más cercana</PasoTitulo>
 
                 <div style={{ fontSize: 11.5, color: TEXT_DIMMER, marginBottom: 6 }}>Tu ciudad</div>
@@ -199,7 +213,8 @@ export default function LimpiezaLandingPage() {
               </div>
 
               {sucursal && (
-                <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px' }}>
+                <div style={{ position: 'relative', overflow: 'hidden', background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px' }}>
+                  <ArcosDecorativos size={110} />
                   <PasoTitulo n={2}>Tus datos</PasoTitulo>
                   <form onSubmit={handleSubmit}>
                     <label htmlFor="nombre" style={{ display: 'block', fontSize: 11.5, color: TEXT_DIMMER, marginBottom: 6 }}>Nombre completo</label>
@@ -224,7 +239,8 @@ export default function LimpiezaLandingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 10 }}>
               <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}>
                 <div style={{ background: GOLD, height: 10 }} />
-                <div style={{ padding: '26px 28px 22px', textAlign: 'center' }}>
+                <div style={{ position: 'relative', overflow: 'hidden', padding: '26px 28px 22px', textAlign: 'center' }}>
+                  <ArcosDecorativos size={130} opacity={0.14} />
                   <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 36, margin: '0 auto 22px' }} />
                   <div style={{ color: TEXT_DIM, fontSize: 13 }}>Obtén una</div>
                   <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 34, color: NAVY, lineHeight: 1.1 }}>Limpieza</div>
