@@ -19,5 +19,18 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
 // .../pdf.worker.mjs"). Si nosotros mismos importamos ese archivo de forma
 // normal y lo dejamos en `globalThis.pdfjsWorker`, pdfjs-dist lo usa
 // directo sin pasar por ese import dinámico.
-import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
-globalThis.pdfjsWorker = pdfjsWorker;
+//
+// En "next dev" local ese mismo import directo revienta al empaquetarlo
+// ("Object.defineProperty called on non-object", dentro del propio
+// pdf.worker.mjs) — es un problema solo del bundling de desarrollo, no de
+// Vercel. Por eso va en un import() dinámico con try/catch: en dev, si
+// falla, lo ignoramos y pdfjs-dist resuelve su worker por su cuenta (ahí sí
+// puede, porque en dev el filesystem completo está disponible); en Vercel
+// el import sí funciona y queda el workaround de siempre. El `await` de
+// nivel superior es necesario para que esto termine ANTES del import de
+// pdf-parse de más abajo en route.js (ver comentario de ese archivo).
+try {
+  globalThis.pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+} catch {
+  // Ver comentario arriba.
+}
