@@ -45,7 +45,7 @@ export default function LimpiezaEstadoPage({ params }) {
         ) : error ? (
           <div style={{ textAlign: 'center' }}>
             <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 32, marginBottom: 20 }} />
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: '#17213a' }}>No encontramos ese código</h1>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: '#17213a' }}>No encontramos ese código</h1>
             <p style={{ color: '#6b6555', fontSize: 13.5, marginTop: 10 }}>{error}</p>
             <Link
               href="/limpieza"

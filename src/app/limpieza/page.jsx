@@ -56,7 +56,7 @@ function PasoTitulo({ n, children }) {
         width: 24, height: 24, borderRadius: '50%', background: GOLD, color: '#1a1200',
         fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
       }}>{n}</div>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 700, color: NAVY }}>{children}</div>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, fontWeight: 700, color: NAVY }}>{children}</div>
     </div>
   );
 }
@@ -139,10 +139,10 @@ export default function LimpiezaLandingPage() {
               <div style={{ padding: '18px 2px 36px', display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center' }}>
                 <div style={{ flex: '1 1 300px', minWidth: 0 }}>
                   <div style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
 
                   <div style={{ width: 60, height: 2, background: GOLD, marginBottom: 18 }} />
 
@@ -247,8 +247,8 @@ export default function LimpiezaLandingPage() {
                   <ArcosDecorativos size={130} opacity={0.14} />
                   <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 36, margin: '0 auto 22px' }} />
                   <div style={{ color: TEXT_DIM, fontSize: 13 }}>Obtén una</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 34, color: NAVY, lineHeight: 1.1 }}>Limpieza</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 34, color: GOLD_DEEP, lineHeight: 1.15 }}>Gratis</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 34, color: NAVY, lineHeight: 1.1 }}>Limpieza</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 34, color: GOLD_DEEP, lineHeight: 1.15 }}>Gratis</div>
                   <div style={{ color: TEXT_DIM, fontSize: 13, marginTop: 2 }}>de tus joyas</div>
                 </div>
 
