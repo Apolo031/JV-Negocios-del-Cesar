@@ -133,12 +133,22 @@ export default function LimpiezaLandingPage() {
           <circle cx="130" cy="130" r="130" fill={NAVY_DEEP} opacity="0.05" />
         </svg>
 
+        <style jsx>{`
+          @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes sparklePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(1.25); } }
+          @keyframes badgeGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(199,163,57,0.55); } 50% { box-shadow: 0 0 0 9px rgba(199,163,57,0); } }
+          .hero-fade-1 { animation: fadeInUp 0.65s ease-out both; }
+          .hero-fade-2 { animation: fadeInUp 0.65s ease-out 0.18s both; }
+          .sparkle-pulse { display: inline-block; animation: sparklePulse 2.1s ease-in-out infinite; }
+          .badge-glow { animation: badgeGlow 1.8s ease-out infinite; }
+        `}</style>
+
         <div style={{ position: 'relative' }}>
           {!resultado ? (
             <>
               <div style={{ padding: '18px 2px 36px', display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center' }}>
-                <div style={{ flex: '1 1 300px', minWidth: 0 }}>
-                  <div style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
+                <div className="hero-fade-1" style={{ flex: '1 1 300px', minWidth: 0 }}>
+                  <div className="sparkle-pulse" style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
@@ -157,12 +167,25 @@ export default function LimpiezaLandingPage() {
                   </div>
                 </div>
 
-                <div style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
-                  <img
-                    src="/limpieza-hero.jpg"
-                    alt="Joya limpiada por Oroexpress"
-                    style={{ display: 'block', width: '100%', maxWidth: 260, height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
-                  />
+                <div className="hero-fade-2" style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: 260 }}>
+                    <img
+                      src="/limpieza-hero.jpg"
+                      alt="Joya limpiada por Oroexpress"
+                      style={{ display: 'block', width: '100%', height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
+                    />
+                    <div
+                      className="badge-glow"
+                      style={{
+                        position: 'absolute', top: -12, left: -12, background: GOLD, color: '#1a1200',
+                        fontSize: 12, fontWeight: 700, borderRadius: '50%', width: 62, height: 62,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                        lineHeight: 1.1, transform: 'rotate(-12deg)', boxShadow: '0 4px 14px rgba(23,33,58,0.3)',
+                      }}
+                    >
+                      100%<br />GRATIS
+                    </div>
+                  </div>
                 </div>
               </div>
 
