@@ -44,7 +44,7 @@ export default function LimpiezaEstadoPage({ params }) {
           <div style={{ color: '#6b6555' }}>Consultando…</div>
         ) : error ? (
           <div style={{ textAlign: 'center' }}>
-            <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 32, marginBottom: 20 }} />
+            <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 42, marginBottom: 20 }} />
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: '#17213a' }}>No encontramos ese código</h1>
             <p style={{ color: '#6b6555', fontSize: 13.5, marginTop: 10 }}>{error}</p>
             <Link
@@ -64,7 +64,7 @@ export default function LimpiezaEstadoPage({ params }) {
           // de tarjeta, sin los datos de la joya que aún no existen.
           <div style={{ border: '1px solid #e2dcca', borderRadius: 12, overflow: 'hidden', maxWidth: 420, width: '100%', background: '#fff' }}>
             <div style={{ background: 'linear-gradient(135deg, #12151c, #2a3242)', padding: '22px 20px 28px', textAlign: 'center' }}>
-              <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 26, filter: 'brightness(0) invert(1)' }} />
+              <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 40, filter: 'brightness(0) invert(1)' }} />
               <div style={{ color: '#c7a339', fontSize: 10.5, letterSpacing: 0.5, marginTop: 6 }}>MANTENIMIENTO GRATIS</div>
               <div style={{ color: '#fff', fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 700, marginTop: 16 }}>{datos.codigo}</div>
             </div>

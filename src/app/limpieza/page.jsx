@@ -260,7 +260,7 @@ export default function LimpiezaLandingPage() {
                 <div style={{ background: GOLD, height: 10 }} />
                 <div style={{ position: 'relative', overflow: 'hidden', padding: '26px 28px 22px', textAlign: 'center' }}>
                   <ArcosDecorativos size={130} opacity={0.14} />
-                  <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 36, margin: '0 auto 22px' }} />
+                  <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 46, margin: '0 auto 22px' }} />
                   <div style={{ color: TEXT_DIM, fontSize: 13 }}>Obtén un</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 30, color: NAVY, lineHeight: 1.1 }}>Mantenimiento</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 34, color: GOLD_DEEP, lineHeight: 1.15 }}>Gratis</div>

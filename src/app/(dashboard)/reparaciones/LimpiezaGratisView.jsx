@@ -46,7 +46,7 @@ async function descargarFichaPNG(limpieza) {
       im.onerror = reject;
       im.src = '/oroexpress-logo.webp';
     });
-    const logoH = 34;
+    const logoH = 48;
     const logoW = logoH * (logo.width / logo.height);
     // El logo es navy sobre transparente; se recolorea a blanco para que se
     // vea sobre el encabezado oscuro, en vez de ponerle un fondo detrás.

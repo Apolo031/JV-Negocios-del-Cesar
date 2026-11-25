@@ -14,7 +14,7 @@ export default function FichaLimpiezaCard({ limpieza }) {
   return (
     <div style={{ border: '1px solid #e2dcca', borderRadius: 12, overflow: 'hidden', maxWidth: 420, background: '#fff', width: '100%' }}>
       <div style={{ background: 'linear-gradient(135deg, #12151c, #2a3242)', padding: '20px 20px 60px' }}>
-        <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 24, marginBottom: 12, filter: 'brightness(0) invert(1)' }} />
+        <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 40, marginBottom: 12, filter: 'brightness(0) invert(1)' }} />
         <div style={{ color: '#c7a339', fontSize: 10.5, letterSpacing: 0.5, marginTop: -8 }}>COMPRAVENTA Y JOYERÍA · MANTENIMIENTO GRATIS</div>
         {limpieza.fotoUrl && (
           <img src={limpieza.fotoUrl} alt="Foto de la joya" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '2px solid #e8cd7a', float: 'right', marginTop: -36 }} />
