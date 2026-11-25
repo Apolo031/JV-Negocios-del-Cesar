@@ -48,11 +48,17 @@ async function descargarFichaPNG(limpieza) {
     });
     const logoH = 34;
     const logoW = logoH * (logo.width / logo.height);
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(24, 12, logoW + 16, logoH + 16, 6);
-    ctx.fill();
-    ctx.drawImage(logo, 32, 20, logoW, logoH);
+    // El logo es navy sobre transparente; se recolorea a blanco para que se
+    // vea sobre el encabezado oscuro, en vez de ponerle un fondo detrás.
+    const logoCanvas = document.createElement('canvas');
+    logoCanvas.width = logo.width;
+    logoCanvas.height = logo.height;
+    const logoCtx = logoCanvas.getContext('2d');
+    logoCtx.drawImage(logo, 0, 0);
+    logoCtx.globalCompositeOperation = 'source-in';
+    logoCtx.fillStyle = '#ffffff';
+    logoCtx.fillRect(0, 0, logo.width, logo.height);
+    ctx.drawImage(logoCanvas, 32, 20, logoW, logoH);
   } catch {
     ctx.fillStyle = '#e8cd7a';
     ctx.font = '700 22px Arial';
