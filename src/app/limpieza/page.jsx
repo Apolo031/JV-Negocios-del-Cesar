@@ -158,13 +158,11 @@ export default function LimpiezaLandingPage() {
                 </div>
 
                 <div style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: 260, padding: 12, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
-                    <img
-                      src="/limpieza-hero.jpg"
-                      alt="Joya limpiada por Oroexpress"
-                      style={{ display: 'block', width: '100%', height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
-                    />
-                  </div>
+                  <img
+                    src="/limpieza-hero.jpg"
+                    alt="Joya limpiada por Oroexpress"
+                    style={{ display: 'block', width: '100%', maxWidth: 260, height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
+                  />
                 </div>
               </div>
 
