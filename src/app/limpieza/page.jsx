@@ -51,7 +51,7 @@ function ArcosDecorativos({ size = 150, opacity = 0.18 }) {
 
 function PasoTitulo({ n, children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
       <div style={{
         width: 24, height: 24, borderRadius: '50%', background: GOLD, color: '#1a1200',
         fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -144,22 +144,22 @@ export default function LimpiezaLandingPage() {
                   <path d="M52,360 V138 A82,82 0 0,1 138,52 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.24" />
                 </svg>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', position: 'relative' }}>
-                  <div className="hero-fade-1" style={{ flex: '1 1 260px', minWidth: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 24, position: 'relative' }}>
+                  <div className="hero-fade-1" style={{ maxWidth: 420 }}>
                     <div className="sparkle-pulse" style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén un</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Mantenimiento</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
 
-                    <div style={{ width: 60, height: 2, background: GOLD, marginBottom: 18 }} />
+                    <div style={{ width: 60, height: 2, background: GOLD, margin: '0 auto 18px' }} />
 
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 24 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'center', marginBottom: 24, textAlign: 'left' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD_DEEP} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true">
                         <circle cx="12" cy="10" r="3.2" />
                         <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
                       </svg>
-                      <p style={{ fontSize: 14.5, color: TEXT, lineHeight: 1.55, margin: 0 }}>
+                      <p style={{ fontSize: 14.5, color: TEXT, lineHeight: 1.55, margin: 0, maxWidth: 360 }}>
                         Escoge la joyería más cercana de ti y obtén un mantenimiento de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
                       </p>
                     </div>
@@ -177,12 +177,12 @@ export default function LimpiezaLandingPage() {
                     </button>
                   </div>
 
-                  <div className="hero-fade-2" style={{ flex: '0 1 220px', minWidth: 170, display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ width: '100%', maxWidth: 220, padding: 10, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
+                  <div className="hero-fade-2" style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ width: '100%', maxWidth: 260, padding: 10, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
                       <img
                         src="/limpieza-hero.jpg"
                         alt="Joya limpiada por Oroexpress"
-                        style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
+                        style={{ display: 'block', width: '100%', height: 260, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
                       />
                     </div>
                   </div>
@@ -193,8 +193,8 @@ export default function LimpiezaLandingPage() {
                 <ArcosDecorativos />
                 <PasoTitulo n={1}>Escoge la joyería más cercana</PasoTitulo>
 
-                <div style={{ fontSize: 11.5, color: TEXT_DIMMER, marginBottom: 6 }}>Tu ciudad</div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                <div style={{ fontSize: 11.5, color: TEXT_DIMMER, marginBottom: 6, textAlign: 'center' }}>Tu ciudad</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, justifyContent: 'center' }}>
                   <select
                     value={ciudadFiltro}
                     onChange={(e) => { setCiudadFiltro(e.target.value); setUbicacion(null); }}
