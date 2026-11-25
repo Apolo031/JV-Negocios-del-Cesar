@@ -168,24 +168,11 @@ export default function LimpiezaLandingPage() {
                 </div>
 
                 <div className="hero-fade-2" style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: 260 }}>
-                    <img
-                      src="/limpieza-hero.jpg"
-                      alt="Joya limpiada por Oroexpress"
-                      style={{ display: 'block', width: '100%', height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
-                    />
-                    <div
-                      className="badge-glow"
-                      style={{
-                        position: 'absolute', top: -12, left: -12, background: GOLD, color: '#1a1200',
-                        fontSize: 12, fontWeight: 700, borderRadius: '50%', width: 62, height: 62,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                        lineHeight: 1.1, transform: 'rotate(-12deg)', boxShadow: '0 4px 14px rgba(23,33,58,0.3)',
-                      }}
-                    >
-                      100%<br />GRATIS
-                    </div>
-                  </div>
+                  <img
+                    src="/limpieza-hero.jpg"
+                    alt="Joya limpiada por Oroexpress"
+                    style={{ display: 'block', width: '100%', maxWidth: 260, height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
+                  />
                 </div>
               </div>
 
