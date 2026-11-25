@@ -124,9 +124,10 @@ export default function LimpiezaLandingPage() {
         <svg style={{ position: 'absolute', top: -30, left: -30, width: 170, height: 170, pointerEvents: 'none' }} viewBox="0 0 170 170" aria-hidden="true">
           <path d="M14,156 A142,142 0 0,1 156,14" fill="none" stroke={GOLD} strokeWidth="2" opacity="0.5" />
         </svg>
-        <svg style={{ position: 'absolute', top: -20, right: 40, width: 220, height: 320, pointerEvents: 'none' }} viewBox="0 0 220 320" aria-hidden="true">
-          <path d="M0,320 V90 A90,90 0 0,1 90,0 H220" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.35" />
-          <path d="M28,320 V104 A76,76 0 0,1 104,28 H220" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.3" />
+        <svg style={{ position: 'absolute', top: -20, right: 20, width: 260, height: 360, pointerEvents: 'none' }} viewBox="0 0 260 360" aria-hidden="true">
+          <path d="M0,360 V110 A110,110 0 0,1 110,0 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.4" />
+          <path d="M26,360 V124 A96,96 0 0,1 124,26 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.32" />
+          <path d="M52,360 V138 A82,82 0 0,1 138,52 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.24" />
         </svg>
         <svg style={{ position: 'absolute', bottom: -60, right: -60, width: 260, height: 260, pointerEvents: 'none' }} viewBox="0 0 260 260" aria-hidden="true">
           <circle cx="130" cy="130" r="130" fill={NAVY_DEEP} opacity="0.05" />
@@ -135,30 +136,33 @@ export default function LimpiezaLandingPage() {
         <div style={{ position: 'relative' }}>
           {!resultado ? (
             <>
-              <div style={{ padding: '10px 2px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
-                <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+              <div style={{ padding: '18px 2px 36px', display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center' }}>
+                <div style={{ flex: '1 1 300px', minWidth: 0 }}>
                   <div style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM }}>Obtén una</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 42, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 42, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, color: TEXT_DIM, marginBottom: 20 }}>de tus joyas</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
 
-                  <div style={{ width: 54, height: 2, background: GOLD, marginBottom: 18 }} />
+                  <div style={{ width: 60, height: 2, background: GOLD, marginBottom: 18 }} />
 
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 16 }}>📍</span>
-                    <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.5, margin: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD_DEEP} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true">
+                      <circle cx="12" cy="10" r="3.2" />
+                      <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
+                    </svg>
+                    <p style={{ fontSize: 14.5, color: TEXT, lineHeight: 1.55, margin: 0 }}>
                       Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
                     </p>
                   </div>
                 </div>
 
-                <div style={{ flex: '0 1 220px', minWidth: 180, display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: 220, padding: 10, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
+                <div style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: 260, padding: 12, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
                     <img
                       src="/limpieza-hero.jpg"
                       alt="Joya limpiada por Oroexpress"
-                      style={{ display: 'block', width: '100%', height: 260, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
+                      style={{ display: 'block', width: '100%', height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
                     />
                   </div>
                 </div>
