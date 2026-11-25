@@ -165,14 +165,18 @@ export default function LimpiezaLandingPage() {
                     </div>
                   </div>
 
-                  <div className="hero-fade-2" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <div
+                    className="hero-fade-2"
+                    style={{ width: 'calc(100% + 52px)', margin: '0 -26px -32px' }}
+                  >
                     <img
                       src="/limpieza-hero.jpg"
                       alt="Joya limpiada por Oroexpress"
                       style={{
-                        display: 'block', width: '100%', maxWidth: 480, height: 220, objectFit: 'cover', objectPosition: 'center 35%',
-                        maskImage: 'radial-gradient(ellipse 100% 100% at center, #000 65%, transparent 100%)',
-                        WebkitMaskImage: 'radial-gradient(ellipse 100% 100% at center, #000 65%, transparent 100%)',
+                        display: 'block', width: '100%', height: 260, objectFit: 'cover', objectPosition: 'center 35%',
+                        borderRadius: '0 0 20px 20px',
+                        maskImage: 'linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%)',
                       }}
                     />
                   </div>
