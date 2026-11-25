@@ -165,14 +165,16 @@ export default function LimpiezaLandingPage() {
                     </div>
                   </div>
 
-                  <div className="hero-fade-2" style={{ display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ width: '100%', maxWidth: 260, padding: 10, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
-                      <img
-                        src="/limpieza-hero.jpg"
-                        alt="Joya limpiada por Oroexpress"
-                        style={{ display: 'block', width: '100%', height: 260, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
-                      />
-                    </div>
+                  <div className="hero-fade-2" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                    <img
+                      src="/limpieza-hero.jpg"
+                      alt="Joya limpiada por Oroexpress"
+                      style={{
+                        display: 'block', width: '100%', maxWidth: 480, height: 220, objectFit: 'cover', objectPosition: 'center 35%',
+                        maskImage: 'radial-gradient(ellipse 100% 100% at center, #000 65%, transparent 100%)',
+                        WebkitMaskImage: 'radial-gradient(ellipse 100% 100% at center, #000 65%, transparent 100%)',
+                      }}
+                    />
                   </div>
                 </div>
               </div>
