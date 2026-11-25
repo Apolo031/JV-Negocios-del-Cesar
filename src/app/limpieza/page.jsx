@@ -111,6 +111,10 @@ export default function LimpiezaLandingPage() {
         <svg style={{ position: 'absolute', top: -30, left: -30, width: 170, height: 170, pointerEvents: 'none' }} viewBox="0 0 170 170" aria-hidden="true">
           <path d="M14,156 A142,142 0 0,1 156,14" fill="none" stroke={GOLD} strokeWidth="2" opacity="0.5" />
         </svg>
+        <svg style={{ position: 'absolute', top: -20, right: 40, width: 220, height: 320, pointerEvents: 'none' }} viewBox="0 0 220 320" aria-hidden="true">
+          <path d="M0,320 V90 A90,90 0 0,1 90,0 H220" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.35" />
+          <path d="M28,320 V104 A76,76 0 0,1 104,28 H220" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.3" />
+        </svg>
         <svg style={{ position: 'absolute', bottom: -60, right: -60, width: 260, height: 260, pointerEvents: 'none' }} viewBox="0 0 260 260" aria-hidden="true">
           <circle cx="130" cy="130" r="130" fill={NAVY_DEEP} opacity="0.05" />
         </svg>
@@ -137,13 +141,12 @@ export default function LimpiezaLandingPage() {
                 </div>
 
                 <div style={{ flex: '0 1 220px', minWidth: 180, display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: 240, borderRadius: 16, overflow: 'hidden', border: `1px solid ${BORDER}`, boxShadow: '0 10px 28px rgba(23,33,58,0.12)' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: 220, padding: 10, border: `1.5px solid ${GOLD}`, background: '#fffdf8' }}>
                     <img
                       src="/limpieza-hero.jpg"
                       alt="Joya limpiada por Oroexpress"
-                      style={{ display: 'block', width: '100%', height: 200, objectFit: 'cover' }}
+                      style={{ display: 'block', width: '100%', height: 260, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
                     />
-                    <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 15, color: GOLD_LIGHT, textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>✦</div>
                   </div>
                 </div>
               </div>
