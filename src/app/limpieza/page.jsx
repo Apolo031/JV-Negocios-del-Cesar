@@ -147,8 +147,8 @@ export default function LimpiezaLandingPage() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', position: 'relative' }}>
                   <div className="hero-fade-1" style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <div className="sparkle-pulse" style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén un</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Mantenimiento</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
 
@@ -160,7 +160,7 @@ export default function LimpiezaLandingPage() {
                         <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
                       </svg>
                       <p style={{ fontSize: 14.5, color: TEXT, lineHeight: 1.55, margin: 0 }}>
-                        Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
+                        Escoge la joyería más cercana de ti y obtén un mantenimiento de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
                       </p>
                     </div>
 
@@ -173,7 +173,7 @@ export default function LimpiezaLandingPage() {
                         boxShadow: '0 6px 18px rgba(199,163,57,0.3)',
                       }}
                     >
-                      Reclama tu limpieza gratis ↓
+                      Reclama tu mantenimiento gratis ↓
                     </button>
                   </div>
 
@@ -267,8 +267,8 @@ export default function LimpiezaLandingPage() {
                 <div style={{ position: 'relative', overflow: 'hidden', padding: '26px 28px 22px', textAlign: 'center' }}>
                   <ArcosDecorativos size={130} opacity={0.14} />
                   <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 36, margin: '0 auto 22px' }} />
-                  <div style={{ color: TEXT_DIM, fontSize: 13 }}>Obtén una</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 34, color: NAVY, lineHeight: 1.1 }}>Limpieza</div>
+                  <div style={{ color: TEXT_DIM, fontSize: 13 }}>Obtén un</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 30, color: NAVY, lineHeight: 1.1 }}>Mantenimiento</div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 34, color: GOLD_DEEP, lineHeight: 1.15 }}>Gratis</div>
                   <div style={{ color: TEXT_DIM, fontSize: 13, marginTop: 2 }}>de tus joyas</div>
                 </div>

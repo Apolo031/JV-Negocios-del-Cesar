@@ -269,7 +269,7 @@ export default function ReparacionesPage() {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         <button className={`btn-toggle${vista === 'reparaciones' ? ' active' : ''}`} type="button" onClick={() => setVista('reparaciones')}>🔧 Reparaciones</button>
-        <button className={`btn-toggle${vista === 'limpieza' ? ' active' : ''}`} type="button" onClick={() => setVista('limpieza')}>✨ Limpieza gratis</button>
+        <button className={`btn-toggle${vista === 'limpieza' ? ' active' : ''}`} type="button" onClick={() => setVista('limpieza')}>✨ Mantenimiento gratis</button>
       </div>
 
       {vista === 'limpieza' ? (

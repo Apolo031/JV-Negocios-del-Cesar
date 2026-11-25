@@ -55,7 +55,7 @@ async function descargarFichaPNG(limpieza) {
   }
   ctx.font = '600 12px Arial';
   ctx.fillStyle = '#c7a339';
-  ctx.fillText('COMPRAVENTA Y JOYERÍA · LIMPIEZA GRATIS', 32, 78);
+  ctx.fillText('COMPRAVENTA Y JOYERÍA · MANTENIMIENTO GRATIS', 32, 78);
 
   // Foto (si hay)
   if (limpieza.fotoUrl) {
@@ -106,7 +106,7 @@ async function descargarFichaPNG(limpieza) {
 
   ctx.font = '11px Arial';
   ctx.fillStyle = '#8d96ac';
-  ctx.fillText('LIMPIEZA', W - 170, 255);
+  ctx.fillText('MANTENIMIENTO', W - 170, 255);
   ctx.font = '700 16px Arial';
   ctx.fillStyle = '#ffffff';
   ctx.fillText(fmtFechaCorta(limpieza.fechaAtencion), W - 170, 275);
@@ -445,7 +445,7 @@ function BuscarCodigo({ limpiezas, isAdmin, codigoInicial }) {
 
           {encontrada.estado === 'no_realizada' && (
             <div>
-              <div className="empty-note">Esta limpieza quedó marcada como no realizada.</div>
+              <div className="empty-note">Este mantenimiento quedó marcado como no realizado.</div>
               {isAdmin && <button className="btn-outline" type="button" onClick={handleReabrir} style={{ marginTop: 10 }}>Reabrir</button>}
             </div>
           )}
@@ -521,7 +521,7 @@ function LimpiezasPedidas({ limpiezas, canEditar, onAbrirCodigo }) {
   return (
     <div>
       <div className="panel">
-        <div className="panel-head"><h3>Limpiezas pedidas</h3></div>
+        <div className="panel-head"><h3>Mantenimientos pedidos</h3></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 18 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 5 }}>Desde</div>
@@ -628,7 +628,7 @@ export default function LimpiezaGratisView({ canEditar, isAdmin }) {
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button className={`btn-toggle${sub === 'buscar' ? ' active' : ''}`} type="button" onClick={() => setSub('buscar')}>Buscar código</button>
-        <button className={`btn-toggle${sub === 'pedidas' ? ' active' : ''}`} type="button" onClick={() => setSub('pedidas')}>Limpiezas pedidas</button>
+        <button className={`btn-toggle${sub === 'pedidas' ? ' active' : ''}`} type="button" onClick={() => setSub('pedidas')}>Mantenimientos pedidos</button>
       </div>
       {canEditar && <RegistrarEnTienda onRegistrado={abrirCodigo} />}
       {sub === 'buscar' ? (
