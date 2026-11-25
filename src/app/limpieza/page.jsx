@@ -121,18 +121,6 @@ export default function LimpiezaLandingPage() {
   return (
     <div style={{ minHeight: '100vh', background: `linear-gradient(160deg, #fffdf8 0%, #f6ecd0 100%)`, padding: '48px 20px', display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 640, position: 'relative' }}>
-        <svg style={{ position: 'absolute', top: -30, left: -30, width: 170, height: 170, pointerEvents: 'none' }} viewBox="0 0 170 170" aria-hidden="true">
-          <path d="M14,156 A142,142 0 0,1 156,14" fill="none" stroke={GOLD} strokeWidth="2" opacity="0.5" />
-        </svg>
-        <svg style={{ position: 'absolute', top: -20, right: 20, width: 260, height: 360, pointerEvents: 'none' }} viewBox="0 0 260 360" aria-hidden="true">
-          <path d="M0,360 V110 A110,110 0 0,1 110,0 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.4" />
-          <path d="M26,360 V124 A96,96 0 0,1 124,26 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.32" />
-          <path d="M52,360 V138 A82,82 0 0,1 138,52 H260" fill="none" stroke={GOLD} strokeWidth="1.5" opacity="0.24" />
-        </svg>
-        <svg style={{ position: 'absolute', bottom: -60, right: -60, width: 260, height: 260, pointerEvents: 'none' }} viewBox="0 0 260 260" aria-hidden="true">
-          <circle cx="130" cy="130" r="130" fill={NAVY_DEEP} opacity="0.05" />
-        </svg>
-
         <style jsx>{`
           @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
           @keyframes sparklePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(1.25); } }
@@ -146,37 +134,54 @@ export default function LimpiezaLandingPage() {
         <div style={{ position: 'relative' }}>
           {!resultado ? (
             <>
-              <div style={{ padding: '18px 2px 36px', display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center' }}>
-                <div className="hero-fade-1" style={{ flex: '1 1 300px', minWidth: 0 }}>
-                  <div className="sparkle-pulse" style={{ color: GOLD, fontSize: 22, marginBottom: 4 }}>✦</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM }}>Obtén una</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: NAVY }}>Limpieza</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_DEEP }}>Gratis</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: TEXT_DIM, marginBottom: 22 }}>de tus joyas</div>
+              <div style={{ position: 'relative', overflow: 'hidden', background: `linear-gradient(135deg, ${NAVY_DEEP} 0%, #1f2a44 55%, #2a3242 100%)`, borderRadius: 20, padding: '32px 26px', marginBottom: 28, boxShadow: '0 16px 40px rgba(18,21,28,0.35)' }}>
+                <svg style={{ position: 'absolute', top: -10, right: -10, width: 200, height: 200, pointerEvents: 'none' }} viewBox="0 0 200 200" aria-hidden="true">
+                  <circle cx="100" cy="100" r="100" fill={GOLD} opacity="0.08" />
+                </svg>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center', position: 'relative' }}>
+                  <div className="hero-fade-1" style={{ flex: '1 1 300px', minWidth: 0 }}>
+                    <div className="sparkle-pulse" style={{ color: GOLD_LIGHT, fontSize: 22, marginBottom: 4 }}>✦</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: '#c6cedd' }}>Obtén una</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 48, lineHeight: 1.05, color: '#fff' }}>Limpieza</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontStyle: 'italic', fontSize: 48, lineHeight: 1.15, color: GOLD_LIGHT }}>Gratis</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: '#c6cedd', marginBottom: 22 }}>de tus joyas</div>
 
-                  <div style={{ width: 60, height: 2, background: GOLD, marginBottom: 18 }} />
+                    <div style={{ width: 60, height: 2, background: GOLD, marginBottom: 18 }} />
 
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD_DEEP} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true">
-                      <circle cx="12" cy="10" r="3.2" />
-                      <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
-                    </svg>
-                    <p style={{ fontSize: 14.5, color: TEXT, lineHeight: 1.55, margin: 0 }}>
-                      Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_DEEP }}>gratis</b>.
-                    </p>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 24 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD_LIGHT} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true">
+                        <circle cx="12" cy="10" r="3.2" />
+                        <path d="M12 2c4.4 0 8 3.4 8 8 0 5.5-8 12-8 12S4 15.5 4 10c0-4.6 3.6-8 8-8z" />
+                      </svg>
+                      <p style={{ fontSize: 14.5, color: '#e7e2d6', lineHeight: 1.55, margin: 0 }}>
+                        Escoge la joyería más cercana de ti y obtén una limpieza de tus joyas <b style={{ color: GOLD_LIGHT }}>gratis</b>.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('paso-1')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      style={{
+                        background: GOLD, color: '#1a1200', border: 'none', borderRadius: 10,
+                        padding: '13px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
+                        boxShadow: '0 6px 18px rgba(199,163,57,0.35)',
+                      }}
+                    >
+                      Reclama tu limpieza gratis ↓
+                    </button>
                   </div>
-                </div>
 
-                <div className="hero-fade-2" style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
-                  <img
-                    src="/limpieza-hero.jpg"
-                    alt="Joya limpiada por Oroexpress"
-                    style={{ display: 'block', width: '100%', maxWidth: 260, height: 300, objectFit: 'cover', boxShadow: '0 10px 28px rgba(23,33,58,0.18)' }}
-                  />
+                  <div className="hero-fade-2" style={{ flex: '0 1 260px', minWidth: 200, display: 'flex', justifyContent: 'center' }}>
+                    <img
+                      src="/limpieza-hero.jpg"
+                      alt="Joya limpiada por Oroexpress"
+                      style={{ display: 'block', width: '100%', maxWidth: 260, height: 300, objectFit: 'cover', borderRadius: 4, boxShadow: '0 14px 34px rgba(0,0,0,0.45)' }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div style={{ position: 'relative', overflow: 'hidden', background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px', marginBottom: 20 }}>
+              <div id="paso-1" style={{ position: 'relative', overflow: 'hidden', background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '26px 24px 30px', marginBottom: 20, scrollMarginTop: 20 }}>
                 <ArcosDecorativos />
                 <PasoTitulo n={1}>Escoge la joyería más cercana</PasoTitulo>
 
