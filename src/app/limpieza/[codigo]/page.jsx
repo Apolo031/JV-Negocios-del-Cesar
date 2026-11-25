@@ -64,7 +64,9 @@ export default function LimpiezaEstadoPage({ params }) {
           // de tarjeta, sin los datos de la joya que aún no existen.
           <div style={{ border: '1px solid #e2dcca', borderRadius: 12, overflow: 'hidden', maxWidth: 420, width: '100%', background: '#fff' }}>
             <div style={{ background: 'linear-gradient(135deg, #12151c, #2a3242)', padding: '22px 20px 28px', textAlign: 'center' }}>
-              <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 26 }} />
+              <div style={{ display: 'inline-block', background: '#fff', borderRadius: 6, padding: '5px 10px' }}>
+                <img src="/oroexpress-logo.webp" alt="Oroexpress" style={{ height: 22, display: 'block' }} />
+              </div>
               <div style={{ color: '#c7a339', fontSize: 10.5, letterSpacing: 0.5, marginTop: 6 }}>MANTENIMIENTO GRATIS</div>
               <div style={{ color: '#fff', fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 700, marginTop: 16 }}>{datos.codigo}</div>
             </div>

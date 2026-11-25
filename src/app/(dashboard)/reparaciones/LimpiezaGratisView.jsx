@@ -47,7 +47,12 @@ async function descargarFichaPNG(limpieza) {
       im.src = '/oroexpress-logo.webp';
     });
     const logoH = 34;
-    ctx.drawImage(logo, 32, 20, logoH * (logo.width / logo.height), logoH);
+    const logoW = logoH * (logo.width / logo.height);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(24, 12, logoW + 16, logoH + 16, 6);
+    ctx.fill();
+    ctx.drawImage(logo, 32, 20, logoW, logoH);
   } catch {
     ctx.fillStyle = '#e8cd7a';
     ctx.font = '700 22px Arial';
